@@ -80,19 +80,12 @@ laço: sem resposta, o estado vira `blocked` e a sessão devolve o próximo pass
 
 ## Git
 
-- `cora-med` e `med-coordination` têm Git local inicializado; **nenhum push foi feito.**
-- Motivo do push retido: os dois repositórios no GitHub **nascidos públicos**. O padrão
-  desta máquina é repositório privado, e a Cora lida com dados de uma empresa de saúde.
-- A mudança de visibilidade foi tentada e **bloqueada pelo classificador do harness**.
-  Ela precisa da mão do Thiago:
-
-```bash
-gh repo edit garcia-goncalves/cora-med --visibility private --accept-visibility-change-consequences
-gh repo edit garcia-goncalves/med-coordination --visibility private --accept-visibility-change-consequences
-```
-
-Depois disso o push é liberado.
-
+- Os dois repositórios do GitHub **nasceram públicos**. Foram tornados **privados** pelo
+  Thiago em 02/09/2026, **antes** do primeiro push — nada foi publicado enquanto estavam
+  abertos. A mudança de visibilidade exige a mão dele: o classificador do harness bloqueia
+  `gh repo edit --visibility` nesta sessão.
+- `med-coordination`: branch `main`, publicada.
+- `cora-med`: `main` com o commit de base, `fase-0/fundacao` com a entrega, PR #1 aberto.
 - Nesta máquina, **só a sessão CORA roda Git em `med-coordination`**.
 
 ## Ainda não existe
