@@ -1,5 +1,7 @@
+import { createHmac, randomBytes } from 'node:crypto'
+
 import type { Approval, ExecutionRecord, RequesterContext } from '@cora/contracts'
-import { decide, hashArgs } from '@cora/policy'
+import { decide, findTool, hashArgs, requiresApproval, wrapUntrusted } from '@cora/policy'
 
 import type { MotorMessage, MotorPort } from '../engine/port.js'
 import type { ToolRegistry } from '../tools/registry.js'
@@ -81,7 +83,21 @@ export async function runTurn(args: RunTurnArgs): Promise<TurnOutcome> {
       }
 
       for (const proposal of step.proposals) {
-        const decision = decide(proposal, approvals.get(proposal.toolName) ?? null, now())
+        // Cancelamento entre propostas do MESMO passo: sem esta checagem, um abort que
+        // chega durante a primeira ferramenta ainda deixaria a segunda executar.
+        if (controller.signal.aborted) return { kind: 'cancelled', records }
+
+        const tool = findTool(proposal.toolName)
+        if (!tool) {
+          return { kind: 'denied', reason: `Ferramenta desconhecida: ${proposal.toolName}`, records }
+        }
+
+        const decision = decide(
+          proposal,
+          approvals.get(proposal.toolName) ?? null,
+          now(),
+          args.requester,
+        )
 
         if (decision.kind === 'deny') {
           return { kind: 'denied', reason: decision.reason, records }
@@ -113,7 +129,11 @@ export async function runTurn(args: RunTurnArgs): Promise<TurnOutcome> {
           toolName: proposal.toolName,
           argsMinimized: minimizeArgs(proposal.args),
           contractVersion: '0.1.0',
-          approvalId: approvals.get(proposal.toolName)?.approvalId ?? null,
+          // Só registra aprovação onde houve rito de aprovação. Copiar o id numa leitura
+          // sugeriria no log um passo humano que não aconteceu.
+          approvalId: requiresApproval(tool.category)
+            ? (approvals.get(proposal.toolName)?.approvalId ?? null)
+            : null,
           startedAt: now().toISOString(),
           state: 'running',
           resultRef: null,
@@ -127,20 +147,29 @@ export async function runTurn(args: RunTurnArgs): Promise<TurnOutcome> {
             signal: controller.signal,
           })
           record.state = 'succeeded'
-          messages.push({
-            role: 'tool_result',
-            content: JSON.stringify({ tool: proposal.toolName, ok: true, result }),
-          })
+
+          // Aprovação vale UMA vez. Consumida assim que o efeito acontece.
+          const usada = approvals.get(proposal.toolName)
+          if (usada && decision.kind === 'allow' && requiresApproval(tool.category)) {
+            approvals.set(proposal.toolName, { ...usada, consumedAt: now().toISOString() })
+          }
+
+          messages.push(toolResultMessage(proposal.toolName, { ok: true, result }))
         } catch (cause) {
-          record.state = controller.signal.aborted ? 'cancelled' : 'failed'
-          messages.push({
-            role: 'tool_result',
-            content: JSON.stringify({
-              tool: proposal.toolName,
+          // Cancelar no meio de um efeito externo NÃO prova que o efeito não aconteceu.
+          // Isso é reconciliação, não "cancelado" — mentir aqui polui a auditoria.
+          record.state = controller.signal.aborted
+            ? requiresApproval(tool.category)
+              ? 'needs_reconciliation'
+              : 'cancelled'
+            : 'failed'
+
+          messages.push(
+            toolResultMessage(proposal.toolName, {
               ok: false,
               error: cause instanceof Error ? cause.message : 'falha desconhecida',
             }),
-          })
+          )
         }
       }
     }
@@ -150,12 +179,36 @@ export async function runTurn(args: RunTurnArgs): Promise<TurnOutcome> {
 }
 
 /**
- * Minimização para o log: guarda a FORMA dos argumentos e o hash, nunca o conteúdo.
- * Não queremos título de tarefa, nome de paciente ou texto de e-mail em log por padrão.
+ * Resultado de ferramenta é DADO EXTERNO: veio do Workspace, e o Workspace tem dentro
+ * dele texto escrito por pessoas — inclusive por quem não é da equipe.
+ *
+ * Sem este embrulho, o título de uma tarefa chega ao modelo no mesmo nível das
+ * instruções da Cora, e quem consegue criar uma tarefa consegue escrever no prompt dela.
+ * A mensagem de erro também: ela é texto controlado pelo outro lado.
  */
+function toolResultMessage(toolName: string, payload: unknown): MotorMessage {
+  return {
+    role: 'tool_result',
+    content: wrapUntrusted({
+      source: `tool:${toolName}`,
+      content: JSON.stringify(payload),
+    }),
+  }
+}
+
+/**
+ * Minimização para o log: guarda a FORMA dos argumentos e um código, nunca o conteúdo.
+ *
+ * O código é HMAC, não hash simples. Um SHA-256 puro de valor de baixa entropia — CPF,
+ * e-mail, telefone, id de paciente — é reversível por dicionário em minutos, e o log tem
+ * plateia mais ampla que o dado. Sem chave configurada, uma chave aleatória por processo:
+ * o código correlaciona execuções da mesma sessão e não vaza nada fora dela.
+ */
+const LOG_HASH_KEY = process.env.CORA_LOG_HASH_KEY ?? randomBytes(32).toString('hex')
+
 function minimizeArgs(args: Record<string, unknown>): Record<string, unknown> {
   return {
     keys: Object.keys(args).sort(),
-    hash: hashArgs('args', args),
+    code: createHmac('sha256', LOG_HASH_KEY).update(hashArgs('args', args)).digest('hex'),
   }
 }

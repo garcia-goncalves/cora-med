@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
 
-import type { Approval, PolicyDecision, ToolCallProposal } from '@cora/contracts'
+import type {
+  Approval,
+  PolicyDecision,
+  RequesterContext,
+  ToolCallProposal,
+} from '@cora/contracts'
 
 import { findTool, isOutOfScope, requiresApproval } from './tools.js'
 
@@ -34,6 +39,7 @@ export function decide(
   proposal: ToolCallProposal,
   approval: Approval | null,
   now: Date,
+  requester: RequesterContext,
 ): PolicyDecision {
   const tool = findTool(proposal.toolName)
   if (!tool) {
@@ -61,6 +67,11 @@ export function decide(
       reason: 'O conteúdo mudou desde a aprovação; é preciso aprovar de novo',
       argsHash,
     }
+  }
+  if (approval.approvedByUserId !== requester.requesterUserId) {
+    // Aprovação é de uma pessoa, não de um nome de ferramenta. Sem esta checagem, uma
+    // aprovação dada por A autorizaria a mesma ação no turno de B.
+    return { kind: 'deny', reason: 'Esta aprovação foi dada por outra pessoa' }
   }
   if (approval.consumedAt !== null) {
     return { kind: 'deny', reason: 'Esta aprovação já foi usada' }

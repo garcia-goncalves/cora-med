@@ -16,8 +16,8 @@ import { collectAllTasks } from './pagination.js'
 function makeClient(fetchImpl: typeof fetch) {
   return new WorkspaceClient({
     baseUrl: 'http://localhost:3000',
-    serviceToken: 'SYNTH-service-token',
-    delegationToken: 'SYNTH-delegation-token',
+    serviceToken: 'SYNTH-placeholder-service',
+    delegationToken: 'SYNTH-placeholder-delegation',
     fetchImpl,
     requestIdFactory: () => 'SYNTH-request-id',
   })
@@ -55,7 +55,7 @@ describe('WorkspaceClient.listTasks — caminho feliz', () => {
       'http://localhost:3000/api/agent/v1/tasks?scope=mine&status=open&limit=5&cursor=SYNTH-cursor',
     )
     expect(capturedHeaders?.get('x-request-id')).toBe('SYNTH-request-id')
-    expect(capturedHeaders?.get('authorization')).toBe('Bearer SYNTH-delegation-token')
+    expect(capturedHeaders?.get('authorization')).toBe('Bearer SYNTH-placeholder-delegation')
   })
 
   it('usa limit 20 quando ele não é informado', async () => {
@@ -150,6 +150,66 @@ describe('WorkspaceClient.listTasks — erros do Workspace', () => {
       .catch((e: unknown) => e)) as WorkspaceApiError
 
     expect(erro.code).toBe('UPSTREAM_UNAVAILABLE')
+  })
+})
+
+describe('WorkspaceClient.listTasks — cancelamento externo', () => {
+  it('signal já abortado impede a requisição de sair', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const client = makeClient(async (_url, init) => {
+      // O fetch recebe um signal já abortado; simulamos o que o runtime faz.
+      if (init?.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+      return jsonResponse(200, fixtures.respostaVazia)
+    })
+
+    const erro = (await client
+      .listTasks({ scope: 'mine', status: 'open', limit: 20 }, { signal: controller.signal })
+      .catch((e: unknown) => e)) as WorkspaceApiError
+
+    expect(erro.code).toBe('UPSTREAM_UNAVAILABLE')
+    expect(erro.message).toMatch(/cancelada/i)
+  })
+
+  it('cancelamento durante a requisição aborta o fetch', async () => {
+    const controller = new AbortController()
+    const client = makeClient(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          )
+          setTimeout(() => controller.abort(), 5)
+        }),
+    )
+
+    const erro = (await client
+      .listTasks({ scope: 'mine', status: 'open', limit: 20 }, { signal: controller.signal })
+      .catch((e: unknown) => e)) as WorkspaceApiError
+
+    expect(erro.message).toMatch(/cancelada/i)
+  })
+
+  it('timeout continua sendo relatado como timeout, não como cancelamento', async () => {
+    const client = new WorkspaceClient({
+      baseUrl: 'http://localhost:3000',
+      serviceToken: 'SYNTH-placeholder-service',
+      delegationToken: 'SYNTH-placeholder-delegation',
+      timeoutMs: 5,
+      requestIdFactory: () => 'SYNTH-request-id',
+      fetchImpl: (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          )
+        }),
+    })
+
+    const erro = (await client
+      .listTasks({ scope: 'mine', status: 'open', limit: 20 })
+      .catch((e: unknown) => e)) as WorkspaceApiError
+
+    expect(erro.message).toMatch(/não respondeu em 5ms/i)
   })
 })
 

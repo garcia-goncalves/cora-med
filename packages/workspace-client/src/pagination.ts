@@ -13,7 +13,7 @@ import { ContractViolationError } from './errors.js'
  */
 export async function collectAllTasks(
   client: WorkspaceClient,
-  opts: { limit?: number; maxPages?: number } = {},
+  opts: { limit?: number; maxPages?: number; signal?: AbortSignal } = {},
 ): Promise<{ tasks: Task[]; pages: number }> {
   const limit = opts.limit ?? 20
   const maxPages = opts.maxPages ?? 50
@@ -29,6 +29,7 @@ export async function collectAllTasks(
       cursor === undefined
         ? { scope: 'mine', status: 'open', limit }
         : { scope: 'mine', status: 'open', limit, cursor },
+      opts.signal === undefined ? {} : { signal: opts.signal },
     )
     pages += 1
 

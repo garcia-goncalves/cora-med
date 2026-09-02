@@ -34,6 +34,35 @@ function exigir(nome: string): string {
   return valor
 }
 
+/**
+ * Timeout validado. `Number('abc')` é `NaN`, e `setTimeout(fn, NaN)` dispara na hora —
+ * o que apareceria como "o Workspace não respondeu", escondendo um erro de configuração.
+ */
+function timeoutMs(): number {
+  const bruto = process.env.WORKSPACE_TIMEOUT_MS
+  if (bruto === undefined || bruto === '') return 10_000
+  const valor = Number(bruto)
+  if (!Number.isFinite(valor) || valor <= 0) {
+    console.error(`WORKSPACE_TIMEOUT_MS precisa ser um número de milissegundos: "${bruto}"`)
+    process.exit(2)
+  }
+  return valor
+}
+
+/**
+ * A evidência vai para um arquivo versionado. Uma URL no formato
+ * `https://usuario:senha@host` imprimiria credencial ali — só host e caminho saem.
+ */
+function alvoSanitizado(): string {
+  const bruto = process.env.WORKSPACE_BASE_URL ?? ''
+  try {
+    const u = new URL(bruto)
+    return `${u.protocol}//${u.host}${u.pathname}`.replace(/\/$/, '')
+  } catch {
+    return '(URL inválida)'
+  }
+}
+
 function sha(repo: string): string {
   try {
     return execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -60,7 +89,7 @@ async function main(): Promise<void> {
     baseUrl: exigir('WORKSPACE_BASE_URL'),
     serviceToken: exigir('WORKSPACE_SERVICE_TOKEN'),
     delegationToken: exigir('WORKSPACE_DELEGATION_TOKEN'),
-    timeoutMs: Number(process.env.WORKSPACE_TIMEOUT_MS ?? 10_000),
+    timeoutMs: timeoutMs(),
   })
 
   console.log('--- EVIDÊNCIA DE INTEGRAÇÃO (CORA) ---')
@@ -68,7 +97,7 @@ async function main(): Promise<void> {
   console.log(`contrato: workspace-agent-v1 ${CONTRACT_VERSION}`)
   console.log(`sha cora-med: ${sha('.')}`)
   console.log(`sha workspace: ${sha('../workspace-medconsultoria')}`)
-  console.log(`alvo: ${process.env.WORKSPACE_BASE_URL}`)
+  console.log(`alvo: ${alvoSanitizado()}`)
   console.log('')
 
   try {

@@ -15,14 +15,14 @@ e link para o registro no Workspace.
 | `packages/contracts/src/workspace-agent/v1/tasks.ts` | schemas da resposta e dos parâmetros; `CONTRACT_VERSION`, `CONTRACT_SHA256` | via cliente |
 | `packages/contracts/src/workspace-agent/v1/errors.ts` | códigos de erro, fallback por status, transitório vs. reautenticar | via cliente |
 | `packages/contracts/src/fixtures/tarefas-sinteticas.ts` | fixtures `SYNTH-`, incluindo uma com injeção de prompt | — |
-| `packages/workspace-client/src/client.ts` | GET, headers, timeout, validação da resposta | 15 |
+| `packages/workspace-client/src/client.ts` | GET, headers, timeout, validação da resposta, cancelamento | 18 |
 | `packages/workspace-client/src/errors.ts` | erros tipados | coberto |
 | `packages/workspace-client/src/pagination.ts` | percorre páginas, detecta id repetido e laço de cursor | 3 |
-| `packages/policy/src/*` | catálogo, aprovação por hash, dado não confiável | 16 |
-| `apps/server/src/run/turn.ts` | laço com tetos e cancelamento | 14 |
+| `packages/policy/src/*` | catálogo, aprovação por hash e por pessoa, dado não confiável | 17 |
+| `apps/server/src/run/turn.ts` | laço com tetos, cancelamento, embrulho de dado externo e consumo de aprovação | 25 |
 | `scripts/integracao-tarefas.ts` | integração HTTP real, travada até o contrato existir | verificado: sai 1 |
 
-Comando: `pnpm run test` → `Tests 54 passed (54)`. `pnpm run typecheck` → limpo.
+Comando: `pnpm run test` → `Tests 69 passed (69)`. `pnpm run typecheck` → limpo.
 
 ## Parte B — bloqueada, esperando CORA-001
 

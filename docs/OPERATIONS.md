@@ -11,7 +11,7 @@ pnpm run test
 pnpm run typecheck
 ```
 
-**O que aparece se der certo:** `Test Files 3 passed (3)` e `Tests 54 passed (54)`.
+**O que aparece se der certo:** `Test Files 3 passed (3)` e `Tests 69 passed (69)`.
 O typecheck não imprime nada quando passa — silêncio é sucesso.
 
 **Se der errado:** `ERR_PNPM_...` normalmente é falta de rede na hora do install; rode
@@ -40,6 +40,12 @@ WORKSPACE_TIMEOUT_MS=10000
 # Tetos de execução, aplicados pela própria aplicação.
 CORA_MAX_MODEL_CALLS=10
 CORA_MAX_RUN_SECONDS=120
+
+# Chave do código de minimização do log de execução (HMAC). Opcional.
+# Sem ela, uma chave aleatória por processo: o código correlaciona execuções da mesma
+# sessão e some no reinício. Defina para correlacionar entre reinícios.
+# É segredo: nunca versionar o valor.
+CORA_LOG_HASH_KEY=
 ```
 
 Nenhum valor real de segredo entra em arquivo versionado. `.env` está no `.gitignore`.

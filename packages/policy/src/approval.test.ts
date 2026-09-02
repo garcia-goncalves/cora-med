@@ -6,6 +6,12 @@ import { escapesBlock, wrapUntrusted } from './untrusted.js'
 
 const AGORA = new Date('2026-09-02T12:00:00-03:00')
 
+const QUEM_PEDE = {
+  requesterUserId: 'SYNTH-user-a',
+  deviceId: null,
+  runId: 'SYNTH-run-1',
+} as const
+
 const PROPOSTA_EXTERNA = {
   toolName: 'workspace.email.send',
   args: { para: 'exemplo@invalido.teste', assunto: 'Assunto sintético' },
@@ -42,25 +48,25 @@ describe('hashArgs', () => {
 
 describe('decide — nega por padrão', () => {
   it('ferramenta fora do catálogo é negada', () => {
-    const d = decide({ toolName: 'shell.exec', args: { cmd: 'dir' } }, null, AGORA)
+    const d = decide({ toolName: 'shell.exec', args: { cmd: 'dir' } }, null, AGORA, QUEM_PEDE)
     expect(d).toEqual({ kind: 'deny', reason: 'Ferramenta desconhecida: shell.exec' })
   })
 
   it('ação privilegiada está fora do escopo da assistente operacional', () => {
-    const d = decide({ toolName: 'system.install', args: {} }, null, AGORA)
+    const d = decide({ toolName: 'system.install', args: {} }, null, AGORA, QUEM_PEDE)
     expect(d.kind).toBe('deny')
   })
 })
 
 describe('decide — leitura e escrita interna rodam sem cerimônia', () => {
   it('workspace.tasks.list (leitura) é permitida sem aprovação', () => {
-    expect(decide({ toolName: 'workspace.tasks.list', args: { limit: 20 } }, null, AGORA)).toEqual({
+    expect(decide({ toolName: 'workspace.tasks.list', args: { limit: 20 } }, null, AGORA, QUEM_PEDE)).toEqual({
       kind: 'allow',
     })
   })
 
   it('workspace.tasks.create (escrita interna reversível) é permitida sem aprovação', () => {
-    expect(decide({ toolName: 'workspace.tasks.create', args: { titulo: 'x' } }, null, AGORA)).toEqual(
+    expect(decide({ toolName: 'workspace.tasks.create', args: { titulo: 'x' } }, null, AGORA, QUEM_PEDE)).toEqual(
       { kind: 'allow' },
     )
   })
@@ -68,14 +74,14 @@ describe('decide — leitura e escrita interna rodam sem cerimônia', () => {
 
 describe('decide — efeito externo exige aprovação vinculada ao conteúdo', () => {
   it('sem aprovação, pede aprovação e devolve o hash do conteúdo', () => {
-    const d = decide(PROPOSTA_EXTERNA, null, AGORA)
+    const d = decide(PROPOSTA_EXTERNA, null, AGORA, QUEM_PEDE)
     expect(d.kind).toBe('needs_approval')
     if (d.kind !== 'needs_approval') throw new Error('inesperado')
     expect(d.argsHash).toBe(hashArgs(PROPOSTA_EXTERNA.toolName, PROPOSTA_EXTERNA.args))
   })
 
   it('com aprovação válida e hash igual, permite', () => {
-    expect(decide(PROPOSTA_EXTERNA, aprovacao(), AGORA)).toEqual({ kind: 'allow' })
+    expect(decide(PROPOSTA_EXTERNA, aprovacao(), AGORA, QUEM_PEDE)).toEqual({ kind: 'allow' })
   })
 
   it('MUDOU O CONTEÚDO: a aprovação anterior não vale mais', () => {
@@ -83,29 +89,35 @@ describe('decide — efeito externo exige aprovação vinculada ao conteúdo', (
       toolName: PROPOSTA_EXTERNA.toolName,
       args: { ...PROPOSTA_EXTERNA.args, para: 'outro@invalido.teste' },
     }
-    const d = decide(alterada, aprovacao(), AGORA)
+    const d = decide(alterada, aprovacao(), AGORA, QUEM_PEDE)
     expect(d.kind).toBe('needs_approval')
     if (d.kind !== 'needs_approval') throw new Error('inesperado')
     expect(d.reason).toMatch(/conteúdo mudou/i)
   })
 
   it('aprovação já usada não vale de novo', () => {
-    const d = decide(PROPOSTA_EXTERNA, aprovacao({ consumedAt: '2026-09-02T11:59:00-03:00' }), AGORA)
+    const d = decide(PROPOSTA_EXTERNA, aprovacao({ consumedAt: '2026-09-02T11:59:00-03:00' }), AGORA, QUEM_PEDE)
     expect(d).toEqual({ kind: 'deny', reason: 'Esta aprovação já foi usada' })
   })
 
   it('aprovação expirada não vale', () => {
-    const d = decide(PROPOSTA_EXTERNA, aprovacao({ expiresAt: '2026-09-02T11:00:00-03:00' }), AGORA)
+    const d = decide(PROPOSTA_EXTERNA, aprovacao({ expiresAt: '2026-09-02T11:00:00-03:00' }), AGORA, QUEM_PEDE)
     expect(d).toEqual({ kind: 'deny', reason: 'A aprovação expirou' })
   })
 
   it('aprovação que expira exatamente agora já não vale', () => {
-    const d = decide(PROPOSTA_EXTERNA, aprovacao({ expiresAt: AGORA.toISOString() }), AGORA)
+    const d = decide(PROPOSTA_EXTERNA, aprovacao({ expiresAt: AGORA.toISOString() }), AGORA, QUEM_PEDE)
     expect(d.kind).toBe('deny')
   })
 
+  it('APROVAÇÃO DE OUTRA PESSOA não autoriza a minha ação', () => {
+    const deOutro = aprovacao({ approvedByUserId: 'SYNTH-user-b' })
+    const d = decide(PROPOSTA_EXTERNA, deOutro, AGORA, QUEM_PEDE)
+    expect(d).toEqual({ kind: 'deny', reason: 'Esta aprovação foi dada por outra pessoa' })
+  })
+
   it('exclusão também é efeito externo e exige aprovação', () => {
-    const d = decide({ toolName: 'workspace.tasks.delete', args: { id: 'SYNTH-task-001' } }, null, AGORA)
+    const d = decide({ toolName: 'workspace.tasks.delete', args: { id: 'SYNTH-task-001' } }, null, AGORA, QUEM_PEDE)
     expect(d.kind).toBe('needs_approval')
   })
 })

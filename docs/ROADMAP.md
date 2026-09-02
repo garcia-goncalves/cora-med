@@ -23,7 +23,7 @@ não é `feito`.
 - ADR 0001 do motor, com commit avaliado e bloqueadores nomeados.
 - Estrutura de coordenação criada; CORA-001 aberto em `proposed`.
 - Fundação de código: contratos, cliente, política, laço de execução.
-- 54 testes locais passando (`pnpm run test`), com fixtures `SYNTH-`.
+- 69 testes locais passando (`pnpm run test`), com fixtures `SYNTH-`.
 - `pnpm run typecheck` limpo.
 - Script de integração existe e **recusa rodar** sem contrato fixado (verificado:
   código de saída 1).

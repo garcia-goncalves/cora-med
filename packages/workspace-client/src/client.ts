@@ -62,7 +62,10 @@ export class WorkspaceClient {
    *
    * Valida os parâmetros ANTES de sair da máquina: pedido inválido não vira requisição.
    */
-  async listTasks(params: ListTasksParams): Promise<ListTasksResponse> {
+  async listTasks(
+    params: ListTasksParams,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<ListTasksResponse> {
     const parsed = ListTasksParamsSchema.safeParse(params)
     if (!parsed.success) {
       throw new WorkspaceApiError({
@@ -83,7 +86,7 @@ export class WorkspaceClient {
     const requestId = this.requestIdFactory()
     const url = `${this.baseUrl}/api/agent/v1/tasks?${query.toString()}`
 
-    const response = await this.request(url, requestId)
+    const response = await this.request(url, requestId, opts.signal)
 
     let body: unknown
     try {
@@ -112,8 +115,21 @@ export class WorkspaceClient {
     return validated.data
   }
 
-  private async request(url: string, requestId: string): Promise<Response> {
+  /**
+   * `external` é o cancelamento do turno da Cora; o controller interno é o timeout.
+   * Os dois precisam abortar a MESMA requisição, senão cancelar um turno deixa o fetch
+   * em voo consumindo conexão até o timeout.
+   */
+  private async request(
+    url: string,
+    requestId: string,
+    external?: AbortSignal,
+  ): Promise<Response> {
     const controller = new AbortController()
+    if (external?.aborted) controller.abort()
+    const onExternalAbort = () => controller.abort()
+    external?.addEventListener('abort', onExternalAbort, { once: true })
+
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
     try {
       return await this.fetchImpl(url, {
@@ -129,17 +145,24 @@ export class WorkspaceClient {
       // Rede fora, DNS, timeout. NUNCA vira lista vazia.
       throw new WorkspaceApiError({
         code: 'UPSTREAM_UNAVAILABLE',
-        message:
-          cause instanceof Error && cause.name === 'AbortError'
-            ? `Workspace não respondeu em ${this.timeoutMs}ms`
-            : 'Não foi possível falar com o Workspace',
+        message: abortMessage(cause, external, this.timeoutMs),
         httpStatus: null,
         requestId,
       })
     } finally {
       clearTimeout(timer)
+      external?.removeEventListener('abort', onExternalAbort)
     }
   }
+}
+
+/** Distingue "o usuário cancelou" de "o Workspace não respondeu a tempo". */
+function abortMessage(cause: unknown, external: AbortSignal | undefined, timeoutMs: number): string {
+  if (!(cause instanceof Error) || cause.name !== 'AbortError') {
+    return 'Não foi possível falar com o Workspace'
+  }
+  if (external?.aborted) return 'Consulta ao Workspace cancelada'
+  return `Workspace não respondeu em ${timeoutMs}ms`
 }
 
 /**

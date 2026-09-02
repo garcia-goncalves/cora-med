@@ -15,9 +15,13 @@ export interface ToolSpec {
   humanDescription: string
   /** Contrato remoto de onde a ferramenta vem, quando houver. */
   contract?: 'workspace-agent-v1'
-  /** `false` = declarada, mas ainda não implementada. Aparece como indisponível na UI. */
-  implemented: boolean
 }
+
+/**
+ * O catálogo diz o que EXISTE e qual o risco de cada coisa. Quem diz o que de fato roda
+ * é o registro de executores (`ToolRegistry`), e ele é a fonte única dessa verdade.
+ * Uma flag `implemented` aqui seria uma segunda verdade capaz de divergir da primeira.
+ */
 
 export const TOOL_CATALOG: readonly ToolSpec[] = [
   {
@@ -25,35 +29,29 @@ export const TOOL_CATALOG: readonly ToolSpec[] = [
     category: 'read',
     humanDescription: 'Listar suas tarefas internas abertas no Workspace',
     contract: 'workspace-agent-v1',
-    // Código pronto; alvo HTTP real ainda depende do ticket CORA-001.
-    implemented: true,
   },
   {
     name: 'workspace.tasks.create',
     category: 'internal_write',
     humanDescription: 'Criar uma tarefa interna no Workspace',
     contract: 'workspace-agent-v1',
-    implemented: false,
   },
   {
     name: 'workspace.email.send',
     category: 'external_effect',
     humanDescription: 'Enviar um e-mail em seu nome',
     contract: 'workspace-agent-v1',
-    implemented: false,
   },
   {
     name: 'workspace.tasks.delete',
     category: 'external_effect',
     humanDescription: 'Excluir uma tarefa no Workspace',
     contract: 'workspace-agent-v1',
-    implemented: false,
   },
   {
     name: 'system.install',
     category: 'privileged',
     humanDescription: 'Instalar software ou alterar configuração do sistema',
-    implemented: false,
   },
 ] as const
 

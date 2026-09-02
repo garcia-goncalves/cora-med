@@ -4,9 +4,13 @@ import { findTool } from '@cora/policy'
 /**
  * Registro de execução das ferramentas.
  *
- * O catálogo (`@cora/policy`) diz o que EXISTE e qual o risco; este registro diz o que
- * de fato roda. Uma ferramenta só executa se estiver nos dois — e o registro se recusa
- * a registrar nome que não esteja no catálogo, para que os dois não deslizem.
+ * O catálogo (`@cora/policy`) diz o que EXISTE e qual o risco; este registro é a fonte
+ * única do que de fato roda. Uma ferramenta só executa se estiver nos dois — e o registro
+ * recusa nome que não esteja no catálogo, para que não haja executor sem classificação
+ * de risco.
+ *
+ * O que a interface deve mostrar como indisponível é o catálogo menos
+ * `availableToolNames()`. Não há flag separada dizendo isso: seria uma segunda verdade.
  */
 export type ToolHandler = (args: {
   args: Record<string, unknown>
@@ -21,12 +25,6 @@ export class ToolRegistry {
     const spec = findTool(name)
     if (!spec) {
       throw new Error(`Ferramenta "${name}" não existe no catálogo da política`)
-    }
-    if (!spec.implemented) {
-      throw new Error(
-        `Ferramenta "${name}" está marcada como não implementada no catálogo; ` +
-          'atualize o catálogo antes de registrar um executor',
-      )
     }
     if (this.handlers.has(name)) {
       throw new Error(`Ferramenta "${name}" já registrada`)
