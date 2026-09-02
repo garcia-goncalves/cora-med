@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+coverage/
+.DS_Store
+Thumbs.db
+
+# Evidência local bruta não versionada; o resumo sanitizado vai para med-coordination.
+tmp/
