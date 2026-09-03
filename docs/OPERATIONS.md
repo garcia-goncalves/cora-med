@@ -19,13 +19,18 @@ O typecheck não imprime nada quando passa — silêncio é sucesso.
 
 ## Variáveis de ambiente
 
-Um arquivo `.env.example` deveria estar versionado aqui, mas as regras de permissão
-**desta máquina** bloqueiam criar/editar qualquer caminho `.env*` — inclusive o exemplo.
-Enquanto isso não muda, a lista canônica é esta:
+O arquivo de exemplo **não existe** neste repositório, e não é esquecimento: as regras de
+permissão **desta máquina** bloqueiam criar, editar e até ler qualquer caminho `.env*` —
+inclusive o exemplo, que não tem segredo nenhum dentro. Só a mão do dono cria esse arquivo.
+
+Enquanto isso, **esta lista aqui é a canônica** — e ela está completa. Quem for criar o
+arquivo de exemplo, copie o bloco abaixo inteiro:
 
 ```
-# URL do Workspace local com banco isolado (Fase 1).
-WORKSPACE_BASE_URL=http://localhost:3000
+# URL do Workspace local com banco isolado.
+# ⚠️ A porta é 4319, não 3000. O valor 3000 esteve aqui e mandava quem seguisse a
+# documentação para uma porta em que o Workspace nunca esteve.
+WORKSPACE_BASE_URL=http://localhost:4319
 
 # Credencial do SERVIÇO Cora — DUAS metades, conforme o contrato.
 # Emitidas por `pnpm agente cliente --nome <nome>`, no repositório do Workspace.
@@ -39,6 +44,12 @@ WORKSPACE_DELEGATION_TOKEN=
 # Chave da API do provedor de modelo (ADR 0002). Sem ela não há conversa; a consulta
 # de tarefas da Fase 1 continua funcionando. É SEGREDO: nunca versionar o valor.
 ANTHROPIC_API_KEY=
+
+# Só para os scripts de verificação (scripts/verificacao-fase-0*.ts). A aplicação NÃO
+# lê estes: ela usa WORKSPACE_DELEGATION_TOKEN. TOKEN_A precisa de "tasks:read
+# tasks:write"; TOKEN_SO_LEITURA, da mesma pessoa, só de "tasks:read".
+TOKEN_A=
+TOKEN_SO_LEITURA=
 
 # Timeout de rede em milissegundos.
 WORKSPACE_TIMEOUT_MS=10000
