@@ -12,7 +12,7 @@
  *   pnpm exec tsx scripts/verificacao-fase-01.ts
  */
 
-import { CONTRACT_SHA256, CONTRACT_VERSION } from '@cora/contracts'
+import { CONTRACT_SHA256, CONTRACT_VERSION, type Task } from '@cora/contracts'
 import { collectAllTasks, WorkspaceApiError, WorkspaceClient } from '@cora/workspace-client'
 
 import type { MotorPort } from '../apps/server/src/engine/port.js'
@@ -68,6 +68,23 @@ async function listar(c: WorkspaceClient): Promise<string> {
   return `200 OK (${page.items.length} tarefas)`
 }
 
+/**
+ * Lista sem derrubar a rodada. Se a credencial estiver expirada ou o Workspace fora, a
+ * verificação continua e a tabela mostra o que falhou — em vez de um stack trace e zero
+ * informação sobre as outras 15 checagens.
+ */
+async function listarItens(c: WorkspaceClient, quem: string): Promise<Task[]> {
+  try {
+    return (await c.listTasks({ scope: 'mine', status: 'open', limit: 100 })).items
+  } catch (cause) {
+    const motivo = cause instanceof WorkspaceApiError ? cause.code : String(cause)
+    console.log(`⚠️  Não consegui listar as tarefas de ${quem}: ${motivo}`)
+    console.log('    (as verificações de isolamento vão reprovar por falta de dado)')
+    console.log('')
+    return []
+  }
+}
+
 async function chamarCru(query: string, token: string): Promise<string> {
   const r = await fetch(`${BASE}/api/agent/v1/tasks?${query}`, {
     headers: {
@@ -85,6 +102,8 @@ async function main(): Promise<void> {
   const tokenA = process.env.TOKEN_A ?? ''
   const tokenB = process.env.TOKEN_B ?? ''
   const tokenExpirado = process.env.TOKEN_EXPIRADO ?? ''
+  const tokenRevogado = process.env.TOKEN_REVOGADO ?? ''
+  const escopoErrado = process.env.TOKEN_ESCOPO_ERRADO ?? ''
 
   console.log('--- VERIFICAÇÃO DA FASE 1 (CORA, consumidor) ---')
   console.log(`data: ${new Date().toISOString()}`)
@@ -117,37 +136,80 @@ async function main(): Promise<void> {
     listar(cliente({ token: 'placeholder-token-nunca-emitido' })),
   )
 
-  // Isolamento A/B: a prova é comparar as duas listas de verdade.
-  const listaA = (
-    await cliente({ token: tokenA }).listTasks({ scope: 'mine', status: 'open', limit: 100 })
-  ).items
-  const listaB = (
-    await cliente({ token: tokenB }).listTasks({ scope: 'mine', status: 'open', limit: 100 })
-  ).items
+  // Isolamento A/B contra as fixtures `cora-fx-*` do WORKSPACE (CORA-002).
+  //
+  // As asserções são POR ID, nunca por total. O banco de desenvolvimento tem outras
+  // tarefas, e "A vê exatamente 7" quebraria no dia em que alguém criasse uma pela tela —
+  // eu caçaria um defeito que não existe. Contar total é cair na vacuidade pelo outro lado.
+  // Buscar fora de um `checar` mataria a rodada inteira com um stack trace se o token
+  // estivesse expirado — foi o que aconteceu na primeira vez. Falha aqui vira lista
+  // vazia + verificações reprovadas, com o motivo legível na tabela.
+  const [listaA, listaB] = await Promise.all([
+    listarItens(cliente({ token: tokenA }), 'A'),
+    listarItens(cliente({ token: tokenB }), 'B'),
+  ])
 
   const idsA = listaA.map((t) => t.id)
   const idsB = listaB.map((t) => t.id)
-  const soDeB = idsB.filter((id) => !idsA.includes(id))
-  const soDeA = idsA.filter((id) => !idsB.includes(id))
-  const compartilhadas = idsA.filter((id) => idsB.includes(id))
 
-  await checar('C5.4', 'Tarefa exclusiva de B NÃO aparece para A', 'isolado', async () =>
-    soDeB.every((id) => !idsA.includes(id)) ? 'isolado' : 'VAZOU',
+  await checar('C5.4', 'cora-fx-b1 (só de B) AUSENTE da lista de A', 'ausente', async () =>
+    !idsA.includes('cora-fx-b1') && idsB.includes('cora-fx-b1') ? 'ausente' : 'VAZOU',
   )
 
   await checar(
-    'C5.9',
-    'Todo item devolvido a A tem A em assigneeIds',
-    'coerente',
+    'C5.5',
+    'cora-fx-ab presente nas DUAS, com 2 responsáveis',
+    'compartilhada',
     async () => {
-      if (listaA.length === 0) return 'coerente'
-      // O userId de A não é adivinhado: é o responsável comum a todas as tarefas de A.
-      const comuns = (listaA[0]?.assigneeIds ?? []).filter((u) =>
-        listaA.every((t) => t.assigneeIds.includes(u)),
-      )
-      return comuns.length > 0 ? 'coerente' : 'INCOERENTE'
+      const naA = listaA.find((t) => t.id === 'cora-fx-ab')
+      const naB = listaB.find((t) => t.id === 'cora-fx-ab')
+      if (!naA || !naB) return 'AUSENTE em uma das listas'
+      return naA.assigneeIds.length === 2 && naB.assigneeIds.length === 2
+        ? 'compartilhada'
+        : `assigneeIds com ${naA.assigneeIds.length} id(s)`
     },
   )
+
+  await checar(
+    'C5.6',
+    'cora-fx-apagada e cora-fx-concluida ausentes das DUAS',
+    'ausentes',
+    async () => {
+      const proibidos = ['cora-fx-apagada', 'cora-fx-concluida']
+      const vazou = proibidos.filter((id) => idsA.includes(id) || idsB.includes(id))
+      return vazou.length === 0 ? 'ausentes' : `VAZOU: ${vazou.join(', ')}`
+    },
+  )
+
+  await checar(
+    'C5.16',
+    'cora-fx-semprazo volta com dueAt null, sem prazo inventado',
+    'dueAt null',
+    async () => {
+      const t = listaA.find((x) => x.id === 'cora-fx-semprazo')
+      if (!t) return 'FIXTURE AUSENTE'
+      return t.dueAt === null ? 'dueAt null' : `INVENTOU: ${t.dueAt}`
+    },
+  )
+
+  await checar(
+    'C5.17',
+    'cora-fx-prazo volta com a data exata do fixture',
+    '2026-12-31',
+    async () => {
+      const t = listaA.find((x) => x.id === 'cora-fx-prazo')
+      if (!t || t.dueAt === null) return 'FIXTURE AUSENTE'
+      return t.dueAt.slice(0, 10)
+    },
+  )
+
+  await checar('C5.9', 'Todo item devolvido a A tem A em assigneeIds', 'coerente', async () => {
+    if (listaA.length === 0) return 'coerente'
+    const comuns = (listaA[0]?.assigneeIds ?? []).filter((u) =>
+      listaA.every((t) => t.assigneeIds.includes(u)),
+    )
+    return comuns.length > 0 ? 'coerente' : 'INCOERENTE'
+  })
 
   await checar(
     'C5.7',
@@ -157,7 +219,8 @@ async function main(): Promise<void> {
       const { tasks } = await collectAllTasks(cliente({ token: tokenA }), { limit: 1 })
       const distintos = new Set(tasks.map((t) => t.id)).size
       if (distintos !== tasks.length) return `DUPLICOU (${tasks.length} itens, ${distintos} ids)`
-      if (tasks.length !== idsA.length) return `OMITIU (${tasks.length} vs ${idsA.length})`
+      const faltando = idsA.filter((id) => !tasks.some((t) => t.id === id))
+      if (faltando.length > 0) return `OMITIU: ${faltando.join(', ')}`
       return 'sem duplicata'
     },
   )
@@ -195,6 +258,25 @@ async function main(): Promise<void> {
         tokenB,
       )
     },
+  )
+
+  // CORA-002 item 2: a trava de escopo saiu de "só o autor consegue exercer".
+  await checar('C5.18', 'Delegação com escopo tasks:write (sem tasks:read)', '403 FORBIDDEN', () =>
+    escopoErrado === ''
+      ? Promise.resolve('NAO INFORMADO (defina TOKEN_ESCOPO_ERRADO)')
+      : listar(cliente({ token: escopoErrado })),
+  )
+
+  // CORA-002: expiração e revogação são DOIS caminhos no servidor (`expiraEm` e
+  // `revogadaEm`), embora devolvam o mesmo `code`. Provar um não prova o outro.
+  await checar(
+    'C5.19',
+    'Delegação REVOGADA (caminho distinto do de expiração)',
+    '401 DELEGATION_EXPIRED',
+    () =>
+      tokenRevogado === ''
+        ? Promise.resolve('NAO INFORMADO (defina TOKEN_REVOGADO)')
+        : listar(cliente({ token: tokenRevogado })),
   )
 
   await checar(
@@ -237,8 +319,10 @@ async function main(): Promise<void> {
       messages: [],
     })
 
-    const comInjecao = vistas.find((c) => c.includes('Ignore as instrucoes anteriores'))
-    if (!comInjecao) return 'FIXTURE AUSENTE (rode o seed de fixtures)'
+    // Procura pelo ID da fixture, não pelo texto dela: o texto é do WORKSPACE e pode
+    // mudar; o id é contrato entre nós (CORA-002 §1).
+    const comInjecao = vistas.find((c) => c.includes('cora-fx-injecao'))
+    if (!comInjecao) return 'FIXTURE AUSENTE (rode pnpm agente:fixtures no Workspace)'
     return comInjecao.includes('DADO_NAO_CONFIAVEL') ? 'embrulhado' : 'CRU (falha grave)'
   })
 
@@ -250,11 +334,10 @@ async function main(): Promise<void> {
     )
   }
   console.log('')
-  console.log(`tarefas visíveis para A: ${idsA.length}`)
-  console.log(`tarefas visíveis para B: ${idsB.length}`)
-  console.log(
-    `só de A: ${soDeA.length} · só de B: ${soDeB.length} · compartilhadas: ${compartilhadas.length}`,
-  )
+  const fx = (ids: string[]) => ids.filter((i) => i.startsWith('cora-fx-')).sort().join(', ')
+  console.log(`fixtures cora-fx-* visíveis para A: ${fx(idsA)}`)
+  console.log(`fixtures cora-fx-* visíveis para B: ${fx(idsB)}`)
+  console.log(`(A vê ${idsA.length} no total, B vê ${idsB.length} — total NÃO é asserção)`)
   console.log('')
 
   const falhas = resultados.filter((r) => !r.passou)

@@ -3,9 +3,13 @@
 **Critério de conclusão (briefing, seção 14):** pedido natural → prévia → criação
 idempotente → registro visível, sem duplicação.
 
-**Estado: rascunho.** Escrito em 03/09/2026, depois da Fase 1 comprovada. Este plano vem
-**antes** do ticket de escrita, de propósito: não peço contrato de escrita ao WORKSPACE
-antes de saber exatamente que forma de idempotência quero.
+**Estado: rascunho revisado.** Escrito em 03/09/2026 depois da Fase 1, e **revisado no
+mesmo dia** com a opinião da sessão WORKSPACE. Este plano vem **antes** do ticket de
+escrita, de propósito.
+
+> ⚠️ **Conversa não é contrato.** Nada abaixo vale antes de virar
+> `tickets/CORA-003/request.md` e de ter a resposta do WORKSPACE. O que está aqui é o
+> pedido que eu vou fazer, já alinhado — não uma capacidade que existe.
 
 ---
 
@@ -48,21 +52,36 @@ criada, e repete. Duas tarefas iguais no Workspace, e a Thaís descobre depois.
 
 ### O que vou pedir ao WORKSPACE
 
-**Chave composta por `(clienteDeAgente, requesterUserId, idempotencyKey)`**, onde
-`idempotencyKey` é gerada pela Cora e vinculada ao **turno**, não à tentativa.
+**A chave é minha, e não é derivada do conteúdo.** `Idempotency-Key: <UUID v4>`, em
+cabeçalho, escolhido pela Cora.
+
+Meu rascunho anterior dizia "vinculada ao turno", o que é ambíguo o bastante para alguém
+implementar derivando do payload — e derivar do conteúdo é um defeito com cara de
+elegância: duas tarefas legitimamente iguais no mesmo dia (*"ligar para a clínica"*)
+colidiriam, e a Thaís perderia a segunda **sem saber**. Corrigido depois da opinião do
+WORKSPACE.
+
+**Escopo da chave: `(usuário delegado, ferramenta, chave)` — nunca a delegação.** Se a
+chave morresse junto com o token, renovar a credencial perderia a idempotência exatamente
+depois de uma falha, que é quando a repetição é mais provável.
 
 | Situação | Resposta esperada |
 |---|---|
 | Primeira chamada | `201` com a tarefa criada |
-| Repetição com **os mesmos** argumentos | `200` com **a mesma** tarefa, sem criar outra |
-| Repetição com argumentos **diferentes** | `409 CONFLICT` — a chave já foi usada para outra coisa |
-| Chave de outro usuário | `404`/`409`, nunca a tarefa do outro |
+| Mesma chave, **mesmos** argumentos | `200` (não `201`) com **a mesma** tarefa |
+| Mesma chave, argumentos **diferentes** | `409 CONFLICT` |
+| Chave de outro usuário | nunca a tarefa do outro |
 
-O `409` é o ponto: repetir cegamente com conteúdo diferente é o que produz duplicata, e o
-envelope de erro já reserva esse código desde a `0.1.0`.
+**A comparação é sobre forma canônica** dos argumentos — chaves ordenadas, título com
+`trim`, datas em UTC. Sem isso, reformatar o JSON produziria um `409` falso e eu passaria
+a desconfiar do servidor por um defeito meu.
 
-**Prazo da chave:** peço 24 h. Menos que isso e uma reconciliação no dia seguinte perde a
-referência; mais e a tabela vira lixo.
+**Reserva da chave e criação da tarefa têm de ser atômicas.** `INSERT` na chave primeiro,
+índice único, violação = alguém já tem. Em dois passos, uma queda entre eles cria a segunda
+tarefa — que é exatamente o defeito que a idempotência existe para impedir.
+
+**Validade declarada e curta: 24 h.** Depois disso a chave é esquecida e a repetição cria
+tarefa nova. Precisa estar no contrato para eu não contar com "para sempre".
 
 ### O que a Cora faz quando não sabe
 
@@ -75,23 +94,53 @@ Falha de rede **depois** de enviar não é "não criou". O `ExecutionRecord` já
 
 Nunca repetir cegamente. Nunca dizer "criei" sem ter visto o id.
 
-## 4. A prévia
+## 4. A prévia — quem monta é o Workspace
 
-Criar tarefa interna é `internal_write` — categoria reversível, que pela política roda
-**sem** ritual de aprovação. A prévia aqui não é aprovação de risco: é **desambiguação**.
+**Aqui eu tinha errado o desenho, e a correção veio do WORKSPACE.**
 
-A prévia mostra, sempre com a fonte:
+Meu rascunho tinha a Cora renderizando a prévia a partir do que o modelo produziu e
+**depois** mandando a escrita. O problema: a coisa aprovada e a coisa escrita seriam
+**dois artefatos diferentes**, e a aprovação da Thaís não cobriria o que foi gravado. Entre
+uma e outra cabe qualquer coisa.
 
-| Campo | Regra |
+### Como fica
+
+1. `POST .../tasks/preview` — a Cora manda o que entendeu; o Workspace **resolve as
+   referências** e devolve a prévia **mais** um `approvalToken` amarrado ao **hash dos
+   argumentos exatos** que ele executaria.
+2. `POST .../tasks` — exige esse token. Argumento diferente do aprovado → **recusa**, não
+   "executa o novo".
+
+A Cora renderiza em português o que o Workspace resolveu. Ela não inventa o conteúdo da
+prévia; ela apresenta.
+
+### O que a prévia precisa conter
+
+| Exigência | Por quê |
 |---|---|
-| título | o que a Cora entendeu, não o texto cru |
-| responsável | nome + id; se a Cora inferiu, dizer que inferiu |
-| cliente | nome + id, ou **"nenhum"** — nunca um palpite |
-| prazo | data explícita, ou **"sem prazo"**. Nunca "hoje" por omissão |
+| toda referência **resolvida**: id **e** nome legível | homônimo é onde isto machuca, e id sozinho não deixa a Thaís perceber |
+| o que **não** foi encontrado vem como `null` **com motivo** | omitir vira "eu não vi", e depois "eu não aprovei isso" |
+| "sem prazo" **visível como sem prazo** | ausência tem de aparecer na tela, não sumir dela |
+| token de prazo curto e **uso único** | aprovação não é crachá permanente |
 
-**Ambiguidade não vira escolha silenciosa.** Dois responsáveis possíveis → a Cora pergunta,
-com as duas opções e o que as distingue. Zero correspondências → diz que não encontrou e
-oferece criar sem vínculo.
+### Duas coisas que eu levo como pergunta ao CORA-003
+
+- **Ambiguidade não pode gerar token.** Se a resolução achar dois candidatos, minha
+  expectativa é: a prévia devolve **os candidatos e nenhum `approvalToken`**. Sem token não
+  há o que executar, e a Cora pergunta. Emitir token sobre uma escolha que o servidor fez
+  sozinho seria o mesmo defeito, um nível abaixo.
+- **Token expirando com a Thaís no meio da conversa.** Prazo de minutos é curto para quem
+  atende telefone. Quando expirar eu refaço a prévia — mas se o dado resolvido tiver
+  **mudado**, preciso mostrar o que mudou, não reaprovar em silêncio.
+
+### O que continua valendo do meu lado
+
+Criar tarefa interna é `internal_write` — categoria reversível, que pela minha política
+roda sem ritual de aprovação de risco. O `approvalToken` não muda essa classificação: ele
+resolve um problema diferente, que é **amarrar o que foi mostrado ao que vai ser gravado**.
+
+Ambiguidade vira pergunta com as opções e o que as distingue. Zero correspondências → digo
+que não encontrei e ofereço criar sem vínculo. Nunca escolha calada.
 
 ## 5. Arquivos
 
@@ -111,9 +160,13 @@ oferece criar sem vínculo.
 **Locais, com fixtures sintéticas (entram em `pnpm run test`):**
 
 1. mesma `idempotencyKey` + mesmos argumentos → o cliente chama uma vez e devolve a mesma tarefa;
+1b. a chave gerada é UUID v4 e **não** é função dos argumentos — dois pedidos com o mesmo
+    texto produzem chaves diferentes;
 2. mesma chave + argumentos diferentes → `CONFLICT`, e **nada** é reenviado;
 3. falha de rede depois do envio → estado `needs_reconciliation`, **não** `failed`, e **não** repete;
-4. prévia com cliente ambíguo → devolve pergunta, não escolhe;
+4. prévia com cliente ambíguo → devolve pergunta, não escolhe, e **não** guarda token;
+4b. escrita sem `approvalToken`, ou com argumentos diferentes dos aprovados → recusada
+    antes de sair da máquina;
 5. prévia sem prazo → o texto diz "sem prazo", e a palavra "hoje" não aparece;
 6. resposta de criação vinda do Workspace passa por `wrapUntrusted` antes do motor;
 7. o motor propondo `create` duas vezes no mesmo turno com a mesma chave → executa uma vez.
@@ -141,8 +194,9 @@ Como na Fase 1: **mock não conclui.** O passo 4 é o que fecha a fase.
 
 ## 8. Riscos
 
-- **O WORKSPACE pode propor outra composição de chave.** Se propuser, aceito a deles se
-  cobrir os quatro casos da tabela — a régua é o comportamento, não a minha forma.
+- **O que o WORKSPACE já recusou de antemão**, e eu não vou pedir: endpoint genérico de
+  escrita, campo livre que vire coluna, e escrita que aceite `clienteId` sem passar pelas
+  mesmas regras de negócio das rotas humanas. Concordo com os três.
 - **Custo de modelo sem preço verificado.** Trava a ADR 0002, não o resto do plano.
 - **Ambiguidade é mais comum do que parece.** Se a taxa de perguntas irritar a Thaís, a
   correção é melhorar a busca de correspondência, **não** baixar o limiar e adivinhar.
