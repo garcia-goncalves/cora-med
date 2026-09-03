@@ -27,7 +27,7 @@ Enquanto isso não muda, a lista canônica é esta:
 # URL do Workspace local com banco isolado (Fase 1).
 WORKSPACE_BASE_URL=http://localhost:3000
 
-# Credencial do SERVIÇO Cora — DUAS metades, conforme o contrato 0.1.0.
+# Credencial do SERVIÇO Cora — DUAS metades, conforme o contrato.
 # Emitidas por `pnpm agente cliente --nome <nome>`, no repositório do Workspace.
 WORKSPACE_AGENT_CLIENT=
 WORKSPACE_AGENT_SECRET=
@@ -62,7 +62,7 @@ Nenhum valor real de segredo entra em arquivo versionado. `.env` está no `.giti
 pnpm run integracao:tarefas
 ```
 
-O contrato está fixado (0.1.0, hash `3fc5e144…4609b`), então o script roda. Ele imprime
+O contrato está fixado (**0.2.0**, hash `d5dbff41…ec13a`), então o script roda. Ele imprime
 data, SHA dos dois repositórios, versão do contrato, alvo, resultado, número de páginas e
 os **ids** das tarefas — sem título, para não vazar conteúdo.
 

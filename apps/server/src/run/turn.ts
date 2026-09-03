@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto'
 
+import { CONTRACT_VERSION } from '@cora/contracts'
 import type { Approval, ExecutionRecord, RequesterContext } from '@cora/contracts'
 import {
   cortarParaLimite,
@@ -135,7 +136,10 @@ export async function runTurn(args: RunTurnArgs): Promise<TurnOutcome> {
           deviceId: args.requester.deviceId,
           toolName: proposal.toolName,
           argsMinimized: minimizeArgs(proposal.args),
-          contractVersion: '0.1.0',
+          // A constante, nunca o literal: o registro de execução tem de dizer sob qual
+          // contrato a chamada rodou, e um número escrito à mão aqui congelaria a
+          // auditoria na versão de ontem sem nada acusar.
+          contractVersion: CONTRACT_VERSION,
           // Só registra aprovação onde houve rito de aprovação. Copiar o id numa leitura
           // sugeriria no log um passo humano que não aconteceu.
           approvalId: requiresApproval(tool.category)
