@@ -283,7 +283,10 @@ describe('vazio nunca é a mesma coisa que erro', () => {
         requestId: null,
       }),
     )
-    expect(semPermissao).toMatch(/falta de permissão/i)
+    // Contrato 0.1.0: 403 cobre conta desativada E escopo insuficiente. Nos dois casos,
+    // renovar credencial não resolve — a frase precisa dizer isso.
+    expect(semPermissao).toMatch(/conta foi desativada|não cobre leitura/i)
+    expect(semPermissao).toMatch(/renovar a autorização não resolve/i)
     expect(semPermissao).not.toMatch(/não encontrei nenhuma tarefa/i)
 
     const delegacaoMorta = describeListTasksFailure(
