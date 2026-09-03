@@ -74,10 +74,16 @@ export function describeListTasksFailure(error: unknown): string {
     )
   }
   if (error.code === 'FORBIDDEN') {
+    // Contrato 0.1.0: 403 cobre DOIS casos — conta desativada/removida e delegação sem o
+    // escopo `tasks:read`. Nos dois, pedir credencial nova não resolve; é gente que resolve.
     return (
-      'O Workspace não me deixou consultar essas tarefas (FORBIDDEN). ' +
-      'Não é uma lista vazia: é falta de permissão.'
+      'O Workspace recusou a consulta (FORBIDDEN). Ou sua conta foi desativada, ou a ' +
+      'autorização que eu tenho não cobre leitura de tarefas. Não é uma lista vazia, e ' +
+      'renovar a autorização não resolve — alguém precisa olhar isso.'
     )
+  }
+  if (error.code === 'RATE_LIMITED') {
+    return 'Bati no limite de chamadas do Workspace (RATE_LIMITED). Tente de novo em instantes.'
   }
   if (error.code === 'INVALID_INPUT') {
     return (
