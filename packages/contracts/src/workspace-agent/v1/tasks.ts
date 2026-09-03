@@ -10,10 +10,10 @@ import { z } from 'zod'
  */
 
 /** Versão do contrato que esta cópia espera. */
-export const CONTRACT_VERSION = '0.1.0' as const
+export const CONTRACT_VERSION = '0.2.0' as const
 
 /**
- * SHA-256 do arquivo OpenAPI, fixado aqui. Recebido em CORA-001 e **recalculado de forma
+ * SHA-256 do arquivo OpenAPI, fixado aqui. Recebido em CORA-003 e **recalculado de forma
  * independente** nesta máquina antes de ser gravado.
  *
  * `null` significaria contrato ainda não recebido, e trava a integração real.
@@ -21,7 +21,7 @@ export const CONTRACT_VERSION = '0.1.0' as const
  * trocar o YAML sem trocar o hash, a suíte quebra.
  */
 export const CONTRACT_SHA256: string | null =
-  '3fc5e144c68f319b1e8bb64269bbc4bd55f0e4b903d75b23b3247529b1c4609b'
+  'd5dbff4167727e041326d5e9caf38aa2b3388529272dc673095cdc4a617ec13a'
 
 export const TaskStatusSchema = z.enum(['PENDENTE', 'FAZENDO'])
 export type TaskStatus = z.infer<typeof TaskStatusSchema>

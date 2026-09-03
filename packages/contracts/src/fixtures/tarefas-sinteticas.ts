@@ -7,6 +7,7 @@
  */
 
 import type { ListTasksResponse, Task } from '../workspace-agent/v1/tasks.js'
+import { CONTRACT_VERSION } from '../workspace-agent/v1/tasks.js'
 
 export const SYNTH_USER_A = 'SYNTH-user-a'
 export const SYNTH_USER_B = 'SYNTH-user-b'
@@ -61,13 +62,13 @@ export const tarefaComInjecao: Task = {
 }
 
 export const respostaComDuasTarefas: ListTasksResponse = {
-  contractVersion: '0.1.0',
+  contractVersion: CONTRACT_VERSION,
   items: [tarefaDeA, tarefaCompartilhada],
   nextCursor: null,
 }
 
 export const respostaVazia: ListTasksResponse = {
-  contractVersion: '0.1.0',
+  contractVersion: CONTRACT_VERSION,
   items: [],
   nextCursor: null,
 }

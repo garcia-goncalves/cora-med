@@ -24,10 +24,17 @@ describe('contrato workspace-agent v1 fixado', () => {
     expect(calculado).toBe(CONTRACT_SHA256)
   })
 
-  it('o hash fixado é o que o WORKSPACE publicou em CORA-001', () => {
+  it('o hash fixado é o que o WORKSPACE publicou em CORA-003', () => {
+    // O WORKSPACE garantiu por escrito que NÃO reescreve uma versão publicada: se a
+    // forma do contrato mudar, a versão sobe e vem hash novo. Por isso vale gravar o
+    // número aqui à mão — ele é o segundo par de olhos sobre a constante.
     expect(CONTRACT_SHA256).toBe(
-      '3fc5e144c68f319b1e8bb64269bbc4bd55f0e4b903d75b23b3247529b1c4609b',
+      'd5dbff4167727e041326d5e9caf38aa2b3388529272dc673095cdc4a617ec13a',
     )
+  })
+
+  it('a versão fixada é a 0.2.0, e não a 0.1.0 da Fase 1', () => {
+    expect(CONTRACT_VERSION).toBe('0.2.0')
   })
 
   it('a versão declarada no YAML é a mesma que o cliente exige', () => {

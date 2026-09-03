@@ -1,4 +1,4 @@
-import { fixtures } from '@cora/contracts'
+import { CONTRACT_VERSION, fixtures } from '@cora/contracts'
 import { describe, expect, it } from 'vitest'
 
 import { WorkspaceClient } from './client.js'
@@ -56,7 +56,7 @@ describe('WorkspaceClient.listTasks — caminho feliz', () => {
       'http://localhost:3000/api/agent/v1/tasks?scope=mine&status=open&limit=5&cursor=SYNTH-cursor',
     )
     expect(capturedHeaders?.get('x-request-id')).toBe('SYNTH-request-id')
-    // As DUAS metades da credencial, conforme o contrato 0.1.0.
+    // As DUAS metades da credencial, conforme o contrato.
     expect(capturedHeaders?.get('x-agent-client')).toBe('SYNTH-placeholder-client')
     expect(capturedHeaders?.get('x-agent-secret')).toBe('SYNTH-placeholder-service')
     expect(capturedHeaders?.get('authorization')).toBe('Bearer SYNTH-placeholder-delegation')
@@ -222,7 +222,7 @@ describe('WorkspaceClient.listTasks — resposta fora do contrato', () => {
   it('status desconhecido é recusado', async () => {
     const client = makeClient(async () =>
       jsonResponse(200, {
-        contractVersion: '0.1.0',
+        contractVersion: CONTRACT_VERSION,
         items: [{ ...fixtures.tarefaDeA, status: 'ARQUIVADA' }],
         nextCursor: null,
       }),
@@ -235,7 +235,7 @@ describe('WorkspaceClient.listTasks — resposta fora do contrato', () => {
   it('campo obrigatório faltando é recusado', async () => {
     const { title: _title, ...semTitulo } = fixtures.tarefaDeA
     const client = makeClient(async () =>
-      jsonResponse(200, { contractVersion: '0.1.0', items: [semTitulo], nextCursor: null }),
+      jsonResponse(200, { contractVersion: CONTRACT_VERSION, items: [semTitulo], nextCursor: null }),
     )
     await expect(
       client.listTasks({ scope: 'mine', status: 'open', limit: 20 }),
@@ -244,7 +244,7 @@ describe('WorkspaceClient.listTasks — resposta fora do contrato', () => {
 
   it('contractVersion diferente da fixada é recusada', async () => {
     const client = makeClient(async () =>
-      jsonResponse(200, { ...fixtures.respostaVazia, contractVersion: '0.2.0' }),
+      jsonResponse(200, { ...fixtures.respostaVazia, contractVersion: '9.9.9' }),
     )
     await expect(
       client.listTasks({ scope: 'mine', status: 'open', limit: 20 }),
@@ -268,7 +268,7 @@ describe('paginação', () => {
       const pagina = todas.slice(inicio, inicio + 10)
       const proximo = inicio + 10 < todas.length ? String(inicio + 10) : null
       return jsonResponse(200, {
-        contractVersion: '0.1.0',
+        contractVersion: CONTRACT_VERSION,
         items: pagina,
         nextCursor: proximo,
       })
@@ -283,7 +283,7 @@ describe('paginação', () => {
   })
 
   it('cursor recusado no meio da listagem faz RECOMEÇAR, não falhar', async () => {
-    // Contrato 0.1.0 §8.2: o cursor é assinado e preso à pessoa; trocar o segredo de
+    // Contrato §8.2: o cursor é assinado e preso à pessoa; trocar o segredo de
     // sessão do Workspace invalida os cursores em voo. Isso não é defeito — é recomeço.
     const todas = fixtures.tarefasSinteticas(15)
     let jaRecusou = false
@@ -298,7 +298,7 @@ describe('paginação', () => {
       const inicio = cursor === null ? 0 : Number(cursor)
       const pagina = todas.slice(inicio, inicio + 10)
       return jsonResponse(200, {
-        contractVersion: '0.1.0',
+        contractVersion: CONTRACT_VERSION,
         items: pagina,
         nextCursor: inicio + 10 < todas.length ? String(inicio + 10) : null,
       })
@@ -320,7 +320,7 @@ describe('paginação', () => {
         })
       }
       return jsonResponse(200, {
-        contractVersion: '0.1.0',
+        contractVersion: CONTRACT_VERSION,
         items: fixtures.tarefasSinteticas(10),
         nextCursor: 'p2',
       })
@@ -335,7 +335,7 @@ describe('paginação', () => {
     const client = makeClient(async (url) => {
       const cursor = new URL(String(url)).searchParams.get('cursor')
       return jsonResponse(200, {
-        contractVersion: '0.1.0',
+        contractVersion: CONTRACT_VERSION,
         items: [fixtures.tarefaDeA],
         nextCursor: cursor === null ? 'p2' : null,
       })
@@ -349,7 +349,7 @@ describe('paginação', () => {
   it('cursor que se repete para o laço em vez de girar para sempre', async () => {
     const client = makeClient(async () =>
       jsonResponse(200, {
-        contractVersion: '0.1.0',
+        contractVersion: CONTRACT_VERSION,
         items: [],
         nextCursor: 'sempre-o-mesmo',
       }),

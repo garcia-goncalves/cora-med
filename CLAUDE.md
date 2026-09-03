@@ -9,7 +9,7 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 - **A CORA é a única operadora de Git em `med-coordination`** nesta máquina.
 - **Produção nunca lê de `med-coordination`.** Contrato aceito é copiado para
   `packages/contracts/`.
-- **Contrato fixado por versão E hash.** `workspace-agent-v1` 0.1.0, hash `3fc5e144…4609b`,
+- **Contrato fixado por versão E hash.** `workspace-agent-v1` **0.2.0**, hash `d5dbff41…ec13a`,
   copiado para `packages/contracts/src/workspace-agent/v1/contrato/`. Há teste que rehasheia
   o arquivo: trocar o YAML sem trocar a constante quebra a suíte. Mudança de contrato é
   ticket, nunca edição local.

@@ -39,7 +39,8 @@ não foi instalado nem executado nesta máquina.
 ## Fase 1 — feita e comprovada (03/09/2026)
 
 Contrato `workspace-agent-v1` **0.1.0** fixado por versão **e** hash
-(`3fc5e144…4609b`, recalculado aqui antes de gravar). Autenticação real implementada: são
+(`3fc5e144…4609b`, recalculado aqui antes de gravar) — esta fase foi comprovada contra a
+0.1.0; a 0.2.0 chegou depois, com o CORA-003. Autenticação real implementada: são
 três cabeçalhos e duas identidades — a suposição anterior estava errada, e é por isso que
 esta fase ficou `blocked` em vez de "quase pronta".
 
@@ -81,8 +82,26 @@ antes de saber a forma de idempotência que quero.
   tarefa sem tamanho máximo no contrato.
 - Suíte em **140 testes**, `typecheck` limpo, `pnpm audit` limpo.
 
-**Bloqueado por terceiro:** o endpoint de escrita depende da resposta do **CORA-003**, que
-segue `proposed`. Nada de escrita é implementado antes dela.
+**CORA-003 respondido em 03/09/2026, e o contrato subiu para 0.2.0** (hash
+`d5dbff41…ec13a`, recalculado aqui antes de gravar). A cópia vendorizada e as constantes
+foram trocadas no mesmo commit — é o que o teste que rehasheia o arquivo exige.
+
+O que o WORKSPACE definiu, e que muda o desenho:
+
+- **Atomicidade por índice único com captura da violação**, não por nível de isolamento —
+  em `REPEATABLE READ` duas conexões que conferem e depois gravam passam as duas.
+- **W15 provado**, não descrito: duas criações em paralelo contra o servidor real, e visto
+  reprovando quando a trava é sabotada.
+- **`409` de revalidação com `divergencias[]`** campo a campo, distinguindo rótulo mudado,
+  não encontrado e sem acesso — "a pessoa saiu" e "esse cliente não existe mais" pedem
+  frases diferentes.
+- **Referência pedida que não resolve também zera o token de aprovação** — mais estrito do
+  que eu havia pedido, e adotado: gravar sem o cliente que a Thaís nomeou seria gravar
+  calado outra coisa.
+- **`tasks:write` deixou de ser inerte**: habilita criação **e** prévia.
+
+**Ainda bloqueado:** os três revisores especialistas do WORKSPACE estavam rodando quando a
+janela deles fechou. `createTask` não é implementado antes desse veredito.
 
 **Não verificado, e não vale alegar que foi:** nenhuma chamada real ao provedor de modelo
 foi feita. A qualidade da extração de intenção em português **não** foi medida.

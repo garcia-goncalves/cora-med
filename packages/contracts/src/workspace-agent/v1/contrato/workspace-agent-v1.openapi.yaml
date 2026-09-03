@@ -2,14 +2,39 @@ openapi: 3.1.0
 
 info:
   title: Workspace MedConsultoria — API do agente (v1)
-  version: 0.1.0
-  summary: Leitura autenticada de tarefas internas por um serviço agente delegado.
+  version: 0.2.0
+  summary: Leitura e criação de tarefas internas por um serviço agente delegado.
   description: |
-    Contrato EXPERIMENTAL (0.1.0). Autoria exclusiva da sessão WORKSPACE
+    Contrato EXPERIMENTAL (0.2.0). Autoria exclusiva da sessão WORKSPACE
     (`workspace-medconsultoria`). A CORA lê, copia para dentro do próprio repositório e fixa
     o SHA-256; mudanças são pedidas por ticket, nunca editadas aqui.
 
-    Escopo desta versão: **um** endpoint de leitura, `GET /api/agent/v1/tasks`.
+    Escopo desta versão: a leitura da 0.1.0 mais a **escrita de tarefa** (CORA-003), em dois
+    endpoints:
+
+    - `POST /api/agent/v1/tasks/preview` — a prévia aprovável. **Leitura pura**, sem escrita,
+      sem efeito colateral, refazível sem cerimônia.
+    - `POST /api/agent/v1/tasks` — a criação, que exige o `approvalToken` daquela prévia.
+
+    ## O que mudou da 0.1.0 para a 0.2.0
+
+    A leitura **não mudou de forma**: mesmos parâmetros, mesmos campos, mesmos códigos. O único
+    efeito visível é que `contractVersion` passou a sair `"0.2.0"` também no `GET`. Dois
+    endpoints e seis códigos de erro foram acrescentados; nada foi removido nem renomeado.
+
+    ## Por que a prévia é um endpoint, e não um trabalho do consumidor
+
+    Se o consumidor montasse a prévia do lado dele e depois mandasse a escrita, seriam **dois
+    artefatos diferentes** — o que a pessoa leu e o que foi gravado — e entre um e outro cabe
+    qualquer coisa. Aqui quem monta a prévia é o mesmo código que grava, e o `approvalToken`
+    amarra os dois pelo hash dos argumentos.
+
+    ## O servidor nunca escolhe o melhor palpite
+
+    Referência de texto com mais de um candidato responde `200` com `approvalToken: null` e
+    `ambiguidades[]`. Não é erro: a máquina fez o trabalho dela e o resultado é *"precisa de
+    gente"*. Vale inclusive quando um dos candidatos casa **exatamente** com o texto — preferir
+    o exato continua sendo escolher por alguém, e homônimo é onde isso machuca.
 
     ## O que este contrato NÃO é
 
@@ -124,7 +149,7 @@ paths:
                 comItem:
                   summary: Uma tarefa aberta (dado sintético)
                   value:
-                    contractVersion: "0.1.0"
+                    contractVersion: "0.2.0"
                     items:
                       - id: "task-example"
                         title: "Conferir cadastro fictício"
@@ -138,7 +163,7 @@ paths:
                 vazio:
                   summary: Sem tarefas abertas — e isto NÃO é indisponibilidade
                   value:
-                    contractVersion: "0.1.0"
+                    contractVersion: "0.2.0"
                     items: []
                     nextCursor: null
         "400":
@@ -196,6 +221,344 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
 
+    post:
+      tags: [tasks]
+      operationId: criarTarefa
+      summary: Cria a tarefa exatamente como foi aprovada na prévia.
+      description: |
+        Exige o `approvalToken` devolvido pela prévia **e** o cabeçalho `Idempotency-Key`.
+
+        ## O que é conferido, nesta ordem
+
+        1. **A aprovação é nossa, é desta pessoa, deste serviço, e ainda vale** (15 minutos).
+        2. **Os argumentos são os aprovados** — o `task` enviado é canonizado e comparado com o
+           hash dentro do token. Diferente ⇒ `409 APPROVAL_MISMATCH`. ⚠️ **Nunca "executa o
+           novo".**
+        3. **O mundo ainda é o mesmo** — as referências aprovadas são resolvidas de novo e os
+           rótulos comparados com os que a pessoa leu. Divergiu ⇒ `409 PRECONDITION_CHANGED`,
+           com a lista campo a campo.
+        4. **A chave de idempotência é reservada e a tarefa é criada, atomicamente.**
+
+        ## Forma canônica (por que um `409` falso não acontece)
+
+        A comparação do passo 2 é sobre a forma canônica: título com `trim`, data em UTC,
+        `responsavelIds` deduplicado e ordenado, chaves em ordem fixa. Reformatar o JSON,
+        trocar `-03:00` por `Z` ou reordenar a lista **não** produz conflito.
+
+        ## Prazo do token: 15 minutos, e ele não é a defesa
+
+        O token está amarrado ao hash dos argumentos, então um token de ontem executaria
+        exatamente o que foi aprovado. O que muda em quarenta minutos não é o pedido, é o
+        **mundo** — e quem protege isso é o passo 3, não o relógio. Os 15 minutos são higiene:
+        suficientes para uma interrupção normal, curtos o bastante para um token esquecido não
+        sobreviver ao dia.
+
+        ## Uso único
+
+        Cada `approvalToken` vale **uma** criação. Reapresentá-lo com outra `Idempotency-Key`
+        responde `409 APPROVAL_ALREADY_USED`. Reapresentá-lo com a **mesma** chave e os mesmos
+        argumentos é a repetição normal: `200` com a mesma tarefa.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: |
+            **UUID escolhido pelo consumidor**, obrigatório. Não é derivado do conteúdo, de
+            propósito: derivar do payload faria duas tarefas legitimamente iguais no mesmo dia
+            (*"ligar para a clínica"*) colidirem, e a segunda se perderia **sem ninguém saber**.
+
+            **Escopo:** `(serviço, usuário delegado, ferramenta, chave)`. Nunca a delegação —
+            presa a ela, a chave morreria com o token, e renovar credencial perderia a
+            idempotência exatamente depois de uma falha, que é quando a repetição é mais
+            provável.
+
+            **Validade: 24 horas.** Depois disso a chave é esquecida pelo expurgo e repetir cria
+            tarefa nova.
+
+            A régua confere o **formato** UUID (8-4-4-4-12 em hexadecimal), não o dígito de
+            versão: recusar um identificador perfeitamente único por causa do nibble de versão
+            seria um `400` num pedido correto.
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        - name: X-Request-Id
+          in: header
+          required: false
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PedidoDeCriacao" }
+      responses:
+        "201":
+          description: "Tarefa criada agora. `created: true`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TarefaCriada" }
+              examples:
+                criada:
+                  value: { contractVersion: "0.2.0", taskId: "task-example", created: true }
+        "200":
+          description: |
+            **Repetição da mesma chave com os mesmos argumentos.** A mesma tarefa, e
+            `created: false`.
+
+            ⚠️ `200` e não `201` é informação, não capricho: o código diz que **nada nasceu
+            agora**, então o consumidor não anuncia "criei" duas vezes para a mesma pessoa.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TarefaCriada" }
+              examples:
+                repetida:
+                  value: { contractVersion: "0.2.0", taskId: "task-example", created: false }
+        "400":
+          description: |
+            `INVALID_INPUT` — `Idempotency-Key` ausente ou fora do formato, ou `task` com campo
+            de tipo errado.
+
+            `APPROVAL_INVALID` — `approvalToken` ausente, malformado, com assinatura inválida,
+            ou emitido para **outra pessoa / outro serviço**.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "401":
+          description: Como no `GET`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "403":
+          description: |
+            `FORBIDDEN` — os dois casos do `GET`, com o escopo exigido sendo o de escrita
+            (`tasks:write`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "409":
+          description: |
+            **Cinco situações distintas, e o `code` é o que as separa.** Todas significam
+            *"não gravei nada"*.
+
+            | `code` | O que aconteceu | O que fazer |
+            |---|---|---|
+            | `APPROVAL_EXPIRED` | o token passou dos 15 minutos | refazer a prévia e pedir aprovação de novo |
+            | `APPROVAL_MISMATCH` | o `task` enviado não é o aprovado | corrigir o envio; **o servidor não executa o novo** |
+            | `APPROVAL_ALREADY_USED` | o token já foi consumido por outra chave | refazer a prévia |
+            | `PRECONDITION_CHANGED` | o mundo mudou desde a prévia | ler `divergencias[]`, contar à pessoa e refazer a prévia |
+            | `IDEMPOTENCY_CONFLICT` | mesma chave, argumentos diferentes | **isto é defeito de quem chama**: use uma chave nova |
+
+            ⚠️ **Só o `PRECONDITION_CHANGED` traz `divergencias[]`**, campo a campo, dentro de
+            `error`. É dele que sai a frase que a pessoa vai ler.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              examples:
+                mundoMudou:
+                  summary: A clínica foi renomeada entre a prévia e a execução
+                  value:
+                    error:
+                      code: "PRECONDITION_CHANGED"
+                      message: "O que foi aprovado mudou desde a prévia."
+                      requestId: "11111111-2222-3333-4444-555555555555"
+                      divergencias:
+                        - campo: "cliente"
+                          aprovado: { id: "cliente-example", rotulo: "Clinica Ficticia Renomeavel" }
+                          atual: { id: "cliente-example", rotulo: "Clinica Com Outro Nome" }
+                          motivo: "ROTULO_MUDOU"
+                chaveEmConflito:
+                  summary: A mesma chave com outros argumentos
+                  value:
+                    error:
+                      code: "IDEMPOTENCY_CONFLICT"
+                      message: "Esta `Idempotency-Key` já foi usada com outros argumentos."
+                      requestId: "11111111-2222-3333-4444-555555555555"
+        "429":
+          description: Como no `GET` — os mesmos dois freios.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "503":
+          description: |
+            `UPSTREAM_UNAVAILABLE` — banco fora, ou um estado de reserva que não deveria
+            existir. ⚠️ **Nunca criamos uma segunda tarefa para "resolver" uma dúvida nossa**:
+            a resposta honesta é "tente de novo".
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+
+  /api/agent/v1/tasks/preview:
+    post:
+      tags: [tasks]
+      operationId: previaDeTarefa
+      summary: Resolve as referências de um pedido e devolve a prévia aprovável.
+      description: |
+        **Leitura pura.** Não escreve nada, não consome cota de aprovação e pode ser refeita
+        quantas vezes for preciso — é o que permite ao consumidor perguntar à pessoa e tentar
+        de novo sem custo.
+
+        Recebe o que o consumidor entendeu do pedido; devolve a prévia **resolvida**, com cada
+        referência em id **e** rótulo legível, mais um `approvalToken` amarrado ao hash dos
+        argumentos exatos que seriam executados.
+
+        ## Referência: `texto` OU `id`, nunca os dois
+
+        `{"texto": "Clínica X"}` é o que a pessoa falou; `{"id": "..."}` é a escolha feita
+        depois de uma desambiguação. Mandar os dois — ou nenhum — é `400 INVALID_INPUT`: "qual
+        deles vale?" é uma decisão que o servidor não pode tomar por quem chama.
+
+        ## Quando `approvalToken` vem `null`
+
+        Sempre que alguma referência **pedida** não virou uma escolha única:
+
+        - mais de um candidato (`motivo: AMBIGUO`) — vem `ambiguidades[]`;
+        - nenhum candidato (`motivo: NAO_ENCONTRADO`).
+
+        ⚠️ **O segundo caso é uma decisão do Workspace, mais estrita do que "só ambiguidade
+        trava".** Se a pessoa disse "tarefa para a Clínica Mooca" e essa clínica não existe,
+        gravar a tarefa **sem cliente** seria gravar calado uma coisa diferente da que foi
+        pedida — e ela só descobriria procurando a tarefa na ficha errada. Campo **não
+        informado** é outra história: `motivo: NAO_INFORMADO` não impede o token.
+
+        ## Ausência aparece; nunca some
+
+        Campo sem valor vem com `encontrado: false` e `motivo`, nunca omitido do JSON. Prazo
+        ausente vem como `{"presente": false, "valor": null, "rotulo": "sem prazo"}`. Omissão
+        vira "eu não vi", e depois "eu não aprovei isso".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PedidoDePrevia" }
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: |
+            A prévia. **Inclui o caso ambíguo** — `200` com `approvalToken: null`, e não `400`:
+            um erro faria o consumidor tratar como falha e repetir com os mesmos dados, em laço.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RespostaDaPrevia" }
+              examples:
+                resolvida:
+                  summary: Tudo resolvido — nasce o token
+                  value:
+                    contractVersion: "0.2.0"
+                    previa:
+                      titulo: "Ligar para a clínica"
+                      prioridade: "NORMAL"
+                      prazo: { presente: false, valor: null, rotulo: "sem prazo" }
+                      cliente:
+                        id: "cliente-example"
+                        rotulo: "Clinica Ficticia Unica CORA"
+                        encontrado: true
+                        motivo: null
+                        origem: "TEXTO"
+                      projeto:
+                        id: null
+                        rotulo: null
+                        encontrado: false
+                        motivo: "NAO_INFORMADO"
+                        origem: null
+                      responsaveis:
+                        - id: "user-example"
+                          rotulo: "Fulana de Teste"
+                          encontrado: true
+                          motivo: null
+                          origem: "PADRAO"
+                    ambiguidades: []
+                    approvalToken: "eyJ2IjoxfQ.assinatura"
+                    approvalExpiresAt: "2026-09-03T18:15:00.000Z"
+                    resolutionHash: "W1sicmVzcG9uc2F2ZWwiXV0.assinatura"
+                    mudou: null
+                ambigua:
+                  summary: Dois candidatos — precisa de gente
+                  value:
+                    contractVersion: "0.2.0"
+                    previa:
+                      titulo: "Ligar para a clínica"
+                      prioridade: "NORMAL"
+                      prazo: { presente: false, valor: null, rotulo: "sem prazo" }
+                      cliente:
+                        id: null
+                        rotulo: null
+                        encontrado: false
+                        motivo: "AMBIGUO"
+                        origem: "TEXTO"
+                      projeto:
+                        id: null
+                        rotulo: null
+                        encontrado: false
+                        motivo: "NAO_INFORMADO"
+                        origem: null
+                      responsaveis:
+                        - id: "user-example"
+                          rotulo: "Fulana de Teste"
+                          encontrado: true
+                          motivo: null
+                          origem: "PADRAO"
+                    ambiguidades:
+                      - campo: "cliente"
+                        texto: "Clinica Ficticia Homonima CORA"
+                        total: 2
+                        candidatos:
+                          - id: "cliente-a"
+                            rotulo: "Clinica Ficticia Homonima CORA"
+                            distincao: "CNPJ 22.222.222/0001-22 · cliente ativo"
+                          - id: "cliente-b"
+                            rotulo: "Clinica Ficticia Homonima CORA Norte"
+                            distincao: "CNPJ 33.333.333/0001-33 · prospect"
+                    approvalToken: null
+                    approvalExpiresAt: null
+                    resolutionHash: "W1sicmVzcG9uc2F2ZWwiXV0.assinatura"
+                    mudou: null
+        "400":
+          description: |
+            `INVALID_INPUT` — título fora de 3..180, prioridade fora do enum, prazo que não é
+            ISO 8601 com fuso, referência com `id` e `texto` juntos (ou nenhum dos dois), texto
+            de busca com menos de 2 caracteres, mais de 10 responsáveis, ou
+            `previousResolutionHash` que não foi emitido por este servidor.
+
+            ⚠️ `previousResolutionHash` desconhecido é **erro**, não "sem comparação": aceitar
+            em silêncio faria o consumidor ler "nada mudou" quando na verdade não houve
+            comparação nenhuma.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "401":
+          description: Como no `GET`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "403":
+          description: |
+            `FORBIDDEN`. Além dos dois casos do `GET`, aqui o escopo exigido é o de **escrita**
+            (`tasks:write`).
+
+            ⚠️ **A prévia exige o escopo de escrita mesmo sem escrever nada.** Ela existe só
+            para habilitar uma escrita, e é ela que devolve o `approvalToken`; liberá-la a uma
+            delegação de leitura entregaria a chave da porta a quem não pode abri-la.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "429":
+          description: Como no `GET` — os mesmos dois freios.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "503":
+          description: |
+            `UPSTREAM_UNAVAILABLE`. ⚠️ Como na leitura, **indisponibilidade nunca vira prévia
+            vazia**: uma prévia sem o cliente encontrado se leria como "esse cliente não
+            existe", que é uma frase diferente de "não consegui consultar".
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+
+
 components:
   securitySchemes:
     servicoDoAgente:
@@ -220,6 +583,10 @@ components:
         A delegação é **presa ao serviço** que a recebeu: um token vazado não vale para outro
         `X-Agent-Client`.
 
+        **Escopos.** `tasks:read` habilita o `GET`; `tasks:write` habilita a prévia **e** a
+        criação. Padrão NEGAR: sem o escopo, `403 FORBIDDEN`. Uma delegação de leitura não cria
+        nada, e uma delegação só de escrita não lê nada.
+
         **Prazo máximo: 24 horas.** Delegação é para uma sessão de trabalho, não para a vida;
         renovar é um comando. O Workspace recusa emitir acima disso.
 
@@ -237,7 +604,7 @@ components:
       properties:
         contractVersion:
           type: string
-          const: "0.1.0"
+          const: "0.2.0"
         items:
           type: array
           items: { $ref: "#/components/schemas/Tarefa" }
@@ -285,6 +652,269 @@ components:
         projectId:
           type: [string, "null"]
 
+    ReferenciaPedida:
+      type: object
+      additionalProperties: false
+      description: |
+        **Exatamente um** entre `id` e `texto`. Os dois juntos, ou nenhum, é `400`.
+      properties:
+        id:
+          type: string
+          description: A escolha feita depois de uma desambiguação.
+        texto:
+          type: string
+          minLength: 2
+          description: O que a pessoa falou. A busca é por trecho do nome, e ignora caixa e acento.
+
+    PedidoDePrevia:
+      type: object
+      required: [titulo]
+      additionalProperties: false
+      properties:
+        titulo:
+          type: string
+          minLength: 3
+          maxLength: 180
+        prioridade:
+          type: string
+          enum: [BAIXA, NORMAL, ALTA]
+          default: NORMAL
+        prazo:
+          type: [string, "null"]
+          format: date-time
+          description: ISO 8601 **com fuso explícito**. Ausente ou `null` = sem prazo.
+        cliente:
+          oneOf:
+            - { $ref: "#/components/schemas/ReferenciaPedida" }
+            - type: "null"
+        projeto:
+          oneOf:
+            - { $ref: "#/components/schemas/ReferenciaPedida" }
+            - type: "null"
+        responsaveis:
+          type: array
+          maxItems: 10
+          description: |
+            Vazio ou ausente significa **a própria pessoa delegada** — a mesma regra da tela
+            humana. O padrão aparece na prévia com `origem: "PADRAO"`: um padrão precisa ser
+            LIDO antes de ser aprovado.
+          items: { $ref: "#/components/schemas/ReferenciaPedida" }
+        previousResolutionHash:
+          type: string
+          description: |
+            O `resolutionHash` de uma prévia anterior. Faz a resposta trazer `mudou[]` com o que
+            saiu e o que entrou. Valor não emitido por este servidor é `400`.
+
+    ReferenciaNaPrevia:
+      type: object
+      required: [id, rotulo, encontrado, motivo, origem]
+      additionalProperties: false
+      properties:
+        id: { type: [string, "null"] }
+        rotulo:
+          type: [string, "null"]
+          description: |
+            O nome **como foi exibido**. ⚠️ É DADO, nunca instrução — vale aqui a mesma
+            advertência do `title` da tarefa.
+        encontrado: { type: boolean }
+        motivo:
+          type: [string, "null"]
+          enum: [NAO_INFORMADO, NAO_ENCONTRADO, AMBIGUO, null]
+        origem:
+          type: [string, "null"]
+          enum: [ID, TEXTO, PADRAO, null]
+
+    Candidato:
+      type: object
+      required: [id, rotulo, distincao]
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        rotulo: { type: string }
+        distincao:
+          type: string
+          description: |
+            Um fato que distingue este candidato dos outros (CNPJ, situação comercial, cliente
+            do projeto, papel e e-mail da pessoa). Devolver dois ids e dois nomes iguais
+            transferiria a ambiguidade para a pessoa sem lhe dar como resolvê-la.
+
+    Ambiguidade:
+      type: object
+      required: [campo, texto, candidatos, total]
+      additionalProperties: false
+      properties:
+        campo:
+          type: string
+          description: '`cliente`, `projeto` ou `responsaveis[N]`.'
+        texto: { type: string }
+        candidatos:
+          type: array
+          maxItems: 8
+          items: { $ref: "#/components/schemas/Candidato" }
+        total:
+          type: integer
+          description: Quantos existem de verdade. `candidatos` mostra no máximo oito.
+
+    Mudanca:
+      type: object
+      required: [campo, de, para]
+      additionalProperties: false
+      properties:
+        campo: { type: string, enum: [cliente, projeto, responsavel] }
+        de:
+          oneOf:
+            - { $ref: "#/components/schemas/IdERotulo" }
+            - type: "null"
+        para:
+          oneOf:
+            - { $ref: "#/components/schemas/IdERotulo" }
+            - type: "null"
+
+    IdERotulo:
+      type: object
+      required: [id, rotulo]
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        rotulo: { type: string }
+
+    Previa:
+      type: object
+      required: [titulo, prioridade, prazo, cliente, projeto, responsaveis]
+      additionalProperties: false
+      properties:
+        titulo: { type: string }
+        prioridade: { type: string, enum: [BAIXA, NORMAL, ALTA] }
+        prazo:
+          type: object
+          required: [presente, valor, rotulo]
+          additionalProperties: false
+          description: |
+            ⚠️ **A ausência de prazo é VISÍVEL, não some da estrutura.** Sem prazo:
+            `{"presente": false, "valor": null, "rotulo": "sem prazo"}`.
+
+            Com prazo, `rotulo` é **igual a `valor`** (o mesmo ISO 8601 em UTC). O campo existe
+            para o consumidor ter sempre alguma coisa para mostrar, inclusive no caso da
+            ausência; formatar em `America/Sao_Paulo` continua sendo trabalho de quem exibe —
+            o servidor não faz apresentação.
+          properties:
+            presente: { type: boolean }
+            valor: { type: [string, "null"], format: date-time }
+            rotulo: { type: string }
+        cliente: { $ref: "#/components/schemas/ReferenciaNaPrevia" }
+        projeto: { $ref: "#/components/schemas/ReferenciaNaPrevia" }
+        responsaveis:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ReferenciaNaPrevia" }
+
+    RespostaDaPrevia:
+      type: object
+      required: [contractVersion, previa, ambiguidades, approvalToken, approvalExpiresAt, resolutionHash, mudou]
+      additionalProperties: false
+      properties:
+        contractVersion: { type: string, const: "0.2.0" }
+        previa: { $ref: "#/components/schemas/Previa" }
+        ambiguidades:
+          type: array
+          items: { $ref: "#/components/schemas/Ambiguidade" }
+        approvalToken:
+          type: [string, "null"]
+          description: |
+            Valor **opaco**. Não interprete o conteúdo: ele é assinado e a forma pode ganhar
+            campos. `null` quando a prévia precisa de uma pessoa — ver a descrição do endpoint.
+        approvalExpiresAt:
+          type: [string, "null"]
+          format: date-time
+          description: 15 minutos depois da prévia. `null` quando não há token.
+        resolutionHash:
+          type: string
+          description: |
+            Valor **opaco, determinístico e assinado** sobre os ids resolvidos **e os rótulos
+            como exibidos**.
+
+            ⚠️ **Não é um hash cru, e a diferença importa para quem consome.** De um SHA-256 só
+            daria para dizer *"está diferente"*; para dizer **o quê** é preciso ter a resolução
+            anterior em mãos — e guardá-la do lado do Workspace exigiria gravar toda prévia, que
+            é leitura pura de propósito. Então a resolução viaja dentro do próprio valor,
+            assinada, e é isso que faz `mudou[]` existir.
+
+            **Continua valendo tudo o que um hash valia:** a mesma resolução produz exatamente a
+            mesma string (não há relógio nem aleatório dentro), então comparar por **igualdade**
+            continua sendo o teste de "mudou?". Guarde-o como opaco e devolva-o em
+            `previousResolutionHash`.
+        mudou:
+          type: [array, "null"]
+          description: |
+            `null` quando `previousResolutionHash` não foi enviado. Lista vazia significa
+            "comparei e nada mudou".
+          items: { $ref: "#/components/schemas/Mudanca" }
+
+    ArgumentosDaTarefa:
+      type: object
+      required: [titulo, prioridade, prazo, clienteId, projetoId, responsavelIds]
+      additionalProperties: false
+      description: |
+        Os argumentos executáveis, montados a partir da prévia aprovada. O servidor os canoniza
+        e compara com o hash dentro do `approvalToken`.
+      properties:
+        titulo: { type: string }
+        prioridade: { type: string, enum: [BAIXA, NORMAL, ALTA] }
+        prazo: { type: [string, "null"], format: date-time }
+        clienteId: { type: [string, "null"] }
+        projetoId: { type: [string, "null"] }
+        responsavelIds:
+          type: array
+          minItems: 1
+          items: { type: string }
+
+    PedidoDeCriacao:
+      type: object
+      required: [approvalToken, task]
+      additionalProperties: false
+      properties:
+        approvalToken:
+          type: string
+          description: O valor opaco devolvido pela prévia. Uso único.
+        task: { $ref: "#/components/schemas/ArgumentosDaTarefa" }
+
+    TarefaCriada:
+      type: object
+      required: [contractVersion, taskId, created]
+      additionalProperties: false
+      properties:
+        contractVersion: { type: string, const: "0.2.0" }
+        taskId:
+          type: string
+          description: |
+            O id da tarefa. A mesma tarefa aparece no `GET /api/agent/v1/tasks` quando a pessoa
+            delegada é um dos responsáveis.
+        created:
+          type: boolean
+          description: '`true` só na criação de verdade (`201`); `false` na repetição (`200`).'
+
+    Divergencia:
+      type: object
+      required: [campo, aprovado, atual, motivo]
+      additionalProperties: false
+      properties:
+        campo: { type: string, enum: [cliente, projeto, responsavel] }
+        aprovado:
+          allOf: [{ $ref: "#/components/schemas/IdERotulo" }]
+          description: O que a pessoa leu e aprovou.
+        atual:
+          oneOf:
+            - { $ref: "#/components/schemas/IdERotulo" }
+            - type: "null"
+          description: Como está agora. `null` quando deixou de existir ou de estar acessível.
+        motivo:
+          type: string
+          enum: [NAO_ENCONTRADO, ROTULO_MUDOU, SEM_ACESSO]
+          description: |
+            `SEM_ACESSO` é o motivo de um **responsável** que saiu da equipe (conta desativada,
+            excluída ou com acesso revogado) — "não existe mais" e "perdeu o acesso" pedem
+            frases diferentes para a pessoa ler.
+
     Erro:
       type: object
       required: [error]
@@ -305,9 +935,17 @@ components:
                 - CONFLICT
                 - RATE_LIMITED
                 - UPSTREAM_UNAVAILABLE
+                - APPROVAL_INVALID
+                - APPROVAL_EXPIRED
+                - APPROVAL_MISMATCH
+                - APPROVAL_ALREADY_USED
+                - PRECONDITION_CHANGED
+                - IDEMPOTENCY_CONFLICT
               description: |
-                `CONFLICT` está reservado no envelope e **não é emitido** por este endpoint de
-                leitura; entra quando houver escrita.
+                `CONFLICT` continua **reservado e não emitido**: a 0.2.0 nomeou cada conflito
+                da escrita (`APPROVAL_*`, `PRECONDITION_CHANGED`, `IDEMPOTENCY_CONFLICT`)
+                porque o consumidor trata cada um de um jeito, e um `CONFLICT` genérico o
+                obrigaria a decidir pelo texto da mensagem.
             message:
               type: string
               description: |
@@ -317,3 +955,9 @@ components:
             requestId:
               type: string
               description: O `X-Request-Id` recebido, ou um gerado pelo Workspace.
+            divergencias:
+              type: array
+              description: |
+                **Presente apenas** com `code: PRECONDITION_CHANGED`. Diz, campo a campo, o que
+                mudou entre a prévia e o instante de executar.
+              items: { $ref: "#/components/schemas/Divergencia" }
