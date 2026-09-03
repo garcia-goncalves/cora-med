@@ -125,8 +125,8 @@ TOKEN_A=... TOKEN_SO_LEITURA=... \
 pnpm exec tsx scripts/verificacao-fase-02.ts
 ```
 
-**O que aparece se der certo:** uma tabela de 27 linhas e
-`TODAS AS 27 VERIFICAÇÕES PASSARAM`, com código de saída 0.
+**O que aparece se der certo:** uma tabela de 28 linhas e
+`TODAS AS 28 VERIFICAÇÕES PASSARAM`, com código de saída 0.
 
 ⚠️ **Este script CRIA tarefas de verdade** no banco local — 14 criações, contando as
 recusadas. Só rode contra um Workspace de desenvolvimento. Todo título nasce com o prefixo
@@ -138,10 +138,16 @@ com um `LIKE`.
 escopo de escrita mesmo sem escrever nada (C6.11), e que a criação com delegação de leitura
 dá 403 (C6.24).
 
-Três verificações dependem das fixtures `cora-fx-*` do Workspace (`pnpm agente:fixtures`
-lá): cliente único, cliente homônimo e a de injeção. O termo que casa com a de injeção, e
-só com ela, é `Ignore as instruções` — o nome gravado está **truncado em 120 caracteres**,
-então não dá para casar pelo fim da frase.
+Quatro verificações dependem das fixtures `cora-fx-*` do Workspace
+(`pnpm agente:fixtures` lá): cliente único, cliente homônimo e as duas de injeção.
+
+⚠️ **O texto hostil existe em DOIS artefatos**, e confundi-los faz uma verificação passar
+pelo motivo errado: `cora-fx-cli-injecao` é o **cliente** (nome = `Clinica CORA ` + o
+texto, **cortado em 120 caracteres** — não case pelo fim da frase), e `cora-fx-injecao` é a
+**tarefa**, com o texto inteiro no título. A busca da prévia só alcança o cliente; a tarefa
+aparece no `GET /tasks` e já foi exercida na Fase 1 (C5.15). O termo é `Ignore as
+instruções`, e a C6.27 existe só para provar que ele resolve **um** cliente — sem ela, a
+C6.26 passaria por ambiguidade e estaria provando outra coisa.
 
 **C6.25 dispara duas criações em paralelo com a mesma `Idempotency-Key`.** É a prova W15 do
 Workspace vista do lado de fora. Se vier `201` nas duas, o defeito é do índice único deles,

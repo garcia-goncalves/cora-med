@@ -44,7 +44,18 @@ const SECRET = process.env.WORKSPACE_AGENT_SECRET ?? ''
 const TOKEN_A = process.env.TOKEN_A ?? ''
 const TOKEN_SO_LEITURA = process.env.TOKEN_SO_LEITURA ?? ''
 
-/** Termo que casa com a fixture de injeção e só com ela (confirmado pelo WORKSPACE). */
+/**
+ * Termo que casa com a fixture de injeção de CLIENTE.
+ *
+ * ⚠️ O mesmo texto hostil existe em **dois** artefatos do Workspace, e confundi-los faz
+ * uma verificação passar pelo motivo errado:
+ * - `cora-fx-cli-injecao` — o **cliente**, cujo nome é `Clinica CORA ` + o texto, cortado
+ *   em 120 caracteres. É este que a busca da prévia alcança (ela só olha `Cliente`).
+ * - `cora-fx-injecao` — a **tarefa**, cujo título é o texto inteiro, sem corte. Essa
+ *   aparece no `GET /tasks`, e a Fase 1 já a exerceu (C5.15).
+ *
+ * Por causa do corte em 120, **não case pelo fim da frase**.
+ */
 const BUSCA_INJECAO = 'Ignore as instruções'
 const BUSCA_UNICA = 'Unica CORA'
 const BUSCA_HOMONIMA = 'Homonima CORA'
@@ -595,6 +606,24 @@ async function main(): Promise<void> {
 
   await checar(
     'C6.27',
+    'A busca de injeção resolve UM cliente — a C6.26 não passa por ambiguidade',
+    'um cliente, sem ambiguidade',
+    async () => {
+      // Sem esta checagem, a C6.26 passaria mesmo se a busca virasse ambígua: o texto
+      // hostil apareceria nos rótulos dos candidatos e o embrulho seria exercido do mesmo
+      // jeito — só que provando outra coisa. Verificação que passa pelo motivo errado é
+      // pior que verificação ausente, porque parece cobertura.
+      const r = await cliente().previewTask({
+        titulo: `${marca} injecao unica`,
+        cliente: { texto: BUSCA_INJECAO },
+      })
+      const amb = r.ambiguidades.filter((a) => a.campo === 'cliente').length
+      return `${r.previa.cliente.encontrado ? 'um cliente' : 'nenhum cliente'}, ${amb === 0 ? 'sem ambiguidade' : `${amb} ambiguidade(s)`}`
+    },
+  )
+
+  await checar(
+    'C6.28',
     'O texto hostil chega inteiro, sem ser reescrito nem apagado por nós',
     'inalterado',
     async () => {
