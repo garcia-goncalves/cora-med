@@ -49,12 +49,15 @@ const TOKEN_SO_LEITURA = process.env.TOKEN_SO_LEITURA ?? ''
  *
  * ⚠️ O mesmo texto hostil existe em **dois** artefatos do Workspace, e confundi-los faz
  * uma verificação passar pelo motivo errado:
- * - `cora-fx-cli-injecao` — o **cliente**, cujo nome é `Clinica CORA ` + o texto, cortado
- *   em 120 caracteres. É este que a busca da prévia alcança (ela só olha `Cliente`).
- * - `cora-fx-injecao` — a **tarefa**, cujo título é o texto inteiro, sem corte. Essa
- *   aparece no `GET /tasks`, e a Fase 1 já a exerceu (C5.15).
+ * - `cora-fx-cli-injecao` — o **cliente**, cujo nome é `Clinica CORA ` + o texto. É este
+ *   que a busca da prévia alcança (ela só olha `Cliente`).
+ * - `cora-fx-injecao` — a **tarefa**, cujo título é o texto sozinho. Essa aparece no
+ *   `GET /tasks`, e a Fase 1 já a exerceu (C5.15).
  *
- * Por causa do corte em 120, **não case pelo fim da frase**.
+ * ⚠️ Houve um `slice(0, 120)` no código deles que me foi descrito como truncamento real.
+ * **Não é**: o texto tem 84 caracteres e o prefixo 13, dá 97 — abaixo do corte. O nome
+ * gravado é a frase inteira. Casar pelo começo continua certo; afirmar o truncamento
+ * seria afirmar um fato falso.
  */
 const BUSCA_INJECAO = 'Ignore as instruções'
 const BUSCA_UNICA = 'Unica CORA'

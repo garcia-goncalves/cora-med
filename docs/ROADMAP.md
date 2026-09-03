@@ -9,7 +9,8 @@ não é `feito`.
 |---|---|---|
 | 0 | Inventário, decisão do motor, contrato, coordenação | **feito** |
 | 1 | Consulta autenticada de tarefas | **feito e comprovado** |
-| 2 | Conversa e criação de tarefa | **em andamento** |
+| 2 | Criação de tarefa com prévia aprovável | **feito e comprovado** |
+| 2b | Conversa com modelo de linguagem | **não comprovado** — ver abaixo |
 | 3 | Organização e resumo operacional | não iniciada |
 | 4 | Acesso Windows e PWA Android | não iniciada |
 | 5 | Voz | não iniciada |
@@ -55,7 +56,7 @@ por escopo insuficiente (não há caminho documentado — CORA-002), `403` de co
 (barrada antes, na emissão), `429` dos freios, `503` com banco caído, e revogação (provei
 expiração, que usa o mesmo código).
 
-## Fase 2 — em andamento
+## Fase 2 — a ESCRITA está feita e comprovada (03/09/2026)
 
 Conversa e criação de tarefa com prévia e idempotência. Precisa de endpoint de escrita, que
 não existe no contrato 0.1.0. O plano vem antes do ticket: não peço contrato de escrita
@@ -135,23 +136,35 @@ O que o WORKSPACE definiu, e que muda o desenho:
   diferente criaria duas tarefas se não fosse isso.
 - **Título normalizado em NFC** por eles — não normalizamos aqui.
 
-**Desbloqueado em 03/09/2026:** os três revisores especialistas do WORKSPACE fecharam, o
-PR #180 foi mesclado como `c8affb1` com CI 3/3 verde, e o `:4319` local serve os dois
-endpoints novos — conferido por requisição real, que responde `401` (e não `404`) nas duas
-rotas: o porteiro está na frente delas.
+**28 de 28 verificações passaram contra o Workspace real** (`scripts/verificacao-fase-02.ts`,
+`http://localhost:4319`), em 03/09/2026 às 19:30 UTC, rodadas duas vezes com o mesmo
+resultado. Evidência completa, com a tabela literal, em
+`med-coordination/evidence/cora/2026-09-03-fase-02-escrita.md`; aceite em
+`med-coordination/tickets/CORA-003/acceptance.md`, ticket `done`.
 
-**O que ainda falta para a fase fechar, e é só isto:** rodar
-`scripts/verificacao-fase-02.ts` contra o `:4319` e gravar a evidência no
-`tickets/CORA-003/acceptance.md`. **Mock não conclui integração** — a suíte prova o comportamento do
-cliente diante de cada resposta que o contrato permite, não que o Workspace responda assim.
+Vale nomear as três que mais custaram desenho: **C6.25** — duas criações em paralelo com a
+mesma `Idempotency-Key` criam **uma** tarefa só, que é a W15 do WORKSPACE vista de fora;
+**C6.17** — argumentos diferentes dos aprovados são recusados e o servidor **não executa o
+novo**; e **C6.21** — a mesma chave em caixa alta é a mesma chave, sem o que duas tarefas
+nasceriam e a segunda passaria despercebida.
+
+**O que NÃO foi exercido, e não vale alegar que foi:** `429` dos freios, `503` com banco
+caído, e — a maior lacuna — **`PRECONDITION_CHANGED` com `divergencias[]` reais**. Esta
+última exigiria renomear uma fixture entre a prévia e a criação, dentro da janela de 15
+minutos, no repositório do WORKSPACE, que esta sessão não toca. O tratamento existe e é
+testado localmente, com as três frases distintas para `ROTULO_MUDOU`, `NAO_ENCONTRADO` e
+`SEM_ACESSO`.
 
 **Não verificado, e não vale alegar que foi:** nenhuma chamada real ao provedor de modelo
 foi feita. A qualidade da extração de intenção em português **não** foi medida.
 
 ## O que aparece como indisponível, e vai continuar assim
 
-Criação de tarefa, voz, wake word, desktop Windows, PWA Android, automação de navegador e
-e-mail proativo. Nenhuma dessas coisas ganha botão com sucesso simulado.
+Voz, wake word, desktop Windows, PWA Android, automação de navegador e e-mail proativo.
+Nenhuma dessas coisas ganha botão com sucesso simulado.
+
+**Criação de tarefa saiu desta lista em 03/09/2026**, e saiu inteira: ela foi exercida
+contra um Workspace real, com prévia, aprovação vinculada ao conteúdo e idempotência.
 
 **Conversa com modelo** saiu desta lista pela metade, e a metade importa: o adaptador
 existe e é testado, mas **não há servidor que o exponha** — nenhum processo desta casa

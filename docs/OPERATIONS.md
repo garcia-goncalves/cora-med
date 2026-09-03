@@ -143,8 +143,9 @@ Quatro verificações dependem das fixtures `cora-fx-*` do Workspace
 
 ⚠️ **O texto hostil existe em DOIS artefatos**, e confundi-los faz uma verificação passar
 pelo motivo errado: `cora-fx-cli-injecao` é o **cliente** (nome = `Clinica CORA ` + o
-texto, **cortado em 120 caracteres** — não case pelo fim da frase), e `cora-fx-injecao` é a
-**tarefa**, com o texto inteiro no título. A busca da prévia só alcança o cliente; a tarefa
+texto) e `cora-fx-injecao` é a **tarefa**, com o texto sozinho no título. Há um
+`slice(0, 120)` no código deles que já foi descrito aqui como truncamento real — **não é**:
+o texto tem 84 caracteres e o prefixo 13, então nada é cortado. A busca da prévia só alcança o cliente; a tarefa
 aparece no `GET /tasks` e já foi exercida na Fase 1 (C5.15). O termo é `Ignore as
 instruções`, e a C6.27 existe só para provar que ele resolve **um** cliente — sem ela, a
 C6.26 passaria por ambiguidade e estaria provando outra coisa.
