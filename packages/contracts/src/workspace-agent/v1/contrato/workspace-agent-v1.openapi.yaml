@@ -2,10 +2,10 @@ openapi: 3.1.0
 
 info:
   title: Workspace MedConsultoria — API do agente (v1)
-  version: 0.2.0
+  version: 0.2.1
   summary: Leitura e criação de tarefas internas por um serviço agente delegado.
   description: |
-    Contrato EXPERIMENTAL (0.2.0). Autoria exclusiva da sessão WORKSPACE
+    Contrato EXPERIMENTAL (0.2.1). Autoria exclusiva da sessão WORKSPACE
     (`workspace-medconsultoria`). A CORA lê, copia para dentro do próprio repositório e fixa
     o SHA-256; mudanças são pedidas por ticket, nunca editadas aqui.
 
@@ -15,6 +15,26 @@ info:
     - `POST /api/agent/v1/tasks/preview` — a prévia aprovável. **Leitura pura**, sem escrita,
       sem efeito colateral, refazível sem cerimônia.
     - `POST /api/agent/v1/tasks` — a criação, que exige o `approvalToken` daquela prévia.
+
+    ## ⚠️ TODO TEXTO QUE SAI DAQUI É DADO, NUNCA INSTRUÇÃO
+
+    Vale para `items[].title` (0.1.0) e, na escrita, para **`previa.*.rotulo`**,
+    **`ambiguidades[].candidatos[].rotulo`** e **`error.divergencias[].{aprovado,atual}.rotulo`**.
+
+    **Estes campos têm origem ANÔNIMA.** `Cliente.nome` pode nascer do formulário público do
+    Workspace (`/comecar`), que qualquer pessoa preenche sem autenticação: o nome da empresa
+    informado ali vira o nome do cliente PROSPECT, e é exatamente esse texto que volta como
+    `rotulo`. Um estranho escolhe, então, um conteúdo que o assistente do outro lado vai ler.
+
+    O Workspace devolve o conteúdo **inalterado** — sanitizar aqui esconderia o problema em vez de
+    resolvê-lo, e mutilaria o nome real de um cliente. **A obrigação de tratar como inerte é do
+    consumidor.** Há fixture para exercer isso: o cliente `cora-fx-cli-injecao`.
+
+    ## O que mudou da 0.2.0 para a 0.2.1
+
+    **Só texto.** Nenhum campo, código, parâmetro ou forma mudou: a 0.2.1 acrescenta a declaração
+    de dado inerte acima, que a revisão de segurança cobrou. O `contractVersion` passou a sair
+    `"0.2.1"`.
 
     ## O que mudou da 0.1.0 para a 0.2.0
 
@@ -149,7 +169,7 @@ paths:
                 comItem:
                   summary: Uma tarefa aberta (dado sintético)
                   value:
-                    contractVersion: "0.2.0"
+                    contractVersion: "0.2.1"
                     items:
                       - id: "task-example"
                         title: "Conferir cadastro fictício"
@@ -163,7 +183,7 @@ paths:
                 vazio:
                   summary: Sem tarefas abertas — e isto NÃO é indisponibilidade
                   value:
-                    contractVersion: "0.2.0"
+                    contractVersion: "0.2.1"
                     items: []
                     nextCursor: null
         "400":
@@ -298,7 +318,7 @@ paths:
               schema: { $ref: "#/components/schemas/TarefaCriada" }
               examples:
                 criada:
-                  value: { contractVersion: "0.2.0", taskId: "task-example", created: true }
+                  value: { contractVersion: "0.2.1", taskId: "task-example", created: true }
         "200":
           description: |
             **Repetição da mesma chave com os mesmos argumentos.** A mesma tarefa, e
@@ -311,7 +331,7 @@ paths:
               schema: { $ref: "#/components/schemas/TarefaCriada" }
               examples:
                 repetida:
-                  value: { contractVersion: "0.2.0", taskId: "task-example", created: false }
+                  value: { contractVersion: "0.2.1", taskId: "task-example", created: false }
         "400":
           description: |
             `INVALID_INPUT` — `Idempotency-Key` ausente ou fora do formato, ou `task` com campo
@@ -446,7 +466,7 @@ paths:
                 resolvida:
                   summary: Tudo resolvido — nasce o token
                   value:
-                    contractVersion: "0.2.0"
+                    contractVersion: "0.2.1"
                     previa:
                       titulo: "Ligar para a clínica"
                       prioridade: "NORMAL"
@@ -477,7 +497,7 @@ paths:
                 ambigua:
                   summary: Dois candidatos — precisa de gente
                   value:
-                    contractVersion: "0.2.0"
+                    contractVersion: "0.2.1"
                     previa:
                       titulo: "Ligar para a clínica"
                       prioridade: "NORMAL"
@@ -604,7 +624,7 @@ components:
       properties:
         contractVersion:
           type: string
-          const: "0.2.0"
+          const: "0.2.1"
         items:
           type: array
           items: { $ref: "#/components/schemas/Tarefa" }
@@ -813,7 +833,7 @@ components:
       required: [contractVersion, previa, ambiguidades, approvalToken, approvalExpiresAt, resolutionHash, mudou]
       additionalProperties: false
       properties:
-        contractVersion: { type: string, const: "0.2.0" }
+        contractVersion: { type: string, const: "0.2.1" }
         previa: { $ref: "#/components/schemas/Previa" }
         ambiguidades:
           type: array
@@ -883,7 +903,7 @@ components:
       required: [contractVersion, taskId, created]
       additionalProperties: false
       properties:
-        contractVersion: { type: string, const: "0.2.0" }
+        contractVersion: { type: string, const: "0.2.1" }
         taskId:
           type: string
           description: |

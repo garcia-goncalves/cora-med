@@ -62,7 +62,7 @@ Nenhum valor real de segredo entra em arquivo versionado. `.env` está no `.giti
 pnpm run integracao:tarefas
 ```
 
-O contrato está fixado (**0.2.0**, hash `d5dbff41…ec13a`), então o script roda. Ele imprime
+O contrato está fixado (**0.2.1**, hash `19009cb7…1b50e`), então o script roda. Ele imprime
 data, SHA dos dois repositórios, versão do contrato, alvo, resultado, número de páginas e
 os **ids** das tarefas — sem título, para não vazar conteúdo.
 

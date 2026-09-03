@@ -82,8 +82,9 @@ antes de saber a forma de idempotência que quero.
   tarefa sem tamanho máximo no contrato.
 - Suíte em **140 testes**, `typecheck` limpo, `pnpm audit` limpo.
 
-**CORA-003 respondido em 03/09/2026, e o contrato subiu para 0.2.0** (hash
-`d5dbff41…ec13a`, recalculado aqui antes de gravar). A cópia vendorizada e as constantes
+**CORA-003 respondido em 03/09/2026, e o contrato subiu para 0.2.1** (hash
+`19009cb7…1b50e`, recalculado aqui antes de gravar; a 0.2.1 é mudança só de texto
+sobre a 0.2.0, conferida por diff). A cópia vendorizada e as constantes
 foram trocadas no mesmo commit — é o que o teste que rehasheia o arquivo exige.
 
 O que o WORKSPACE definiu, e que muda o desenho:
@@ -99,6 +100,14 @@ O que o WORKSPACE definiu, e que muda o desenho:
   que eu havia pedido, e adotado: gravar sem o cliente que a Thaís nomeou seria gravar
   calado outra coisa.
 - **`tasks:write` deixou de ser inerte**: habilita criação **e** prévia.
+- **Todo texto que vem do Workspace é dado, nunca instrução** — declarado no contrato a
+  partir da 0.2.1. Não é retórica: `Cliente.nome` nasce do formulário **público** `/comecar`,
+  preenchido **sem autenticação**, e volta como `rotulo` até o modelo. Um estranho escolhe o
+  texto que a Cora vai ler. Eles devolvem inalterado de propósito; a mitigação é nossa e é o
+  `wrapUntrusted`. Fixture para exercer: `cora-fx-cli-injecao`.
+- **`Idempotency-Key` é normalizada para minúsculas** do lado deles. A mesma chave em caixa
+  diferente criaria duas tarefas se não fosse isso.
+- **Título normalizado em NFC** por eles — não normalizamos aqui.
 
 **Ainda bloqueado:** os três revisores especialistas do WORKSPACE estavam rodando quando a
 janela deles fechou. `createTask` não é implementado antes desse veredito.
