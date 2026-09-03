@@ -1,13 +1,28 @@
 import {
+  ArgumentosDaTarefaSchema,
   CONTRACT_SHA256,
   CONTRACT_VERSION,
+  IDEMPOTENCY_KEY_FORMATO,
   ListTasksParamsSchema,
   ListTasksResponseSchema,
+  PedidoDePreviaSchema,
+  RespostaDaPreviaSchema,
+  TarefaCriadaSchema,
+  type ArgumentosDaTarefa,
   type ListTasksParams,
   type ListTasksResponse,
+  type PedidoDePrevia,
+  type RespostaDaPrevia,
+  type TarefaCriada,
 } from '@cora/contracts'
+import type { z } from 'zod'
 
-import { ContractViolationError, toApiError, WorkspaceApiError } from './errors.js'
+import {
+  ContractViolationError,
+  toApiError,
+  WorkspaceApiError,
+  WriteOutcomeUnknownError,
+} from './errors.js'
 
 export interface WorkspaceClientOptions {
   baseUrl: string
@@ -27,9 +42,21 @@ export interface WorkspaceClientOptions {
   requestIdFactory?: () => string
 }
 
+/** O que `createTask` precisa saber, e nada além disso. */
+export interface PedidoDeCriacaoDoCliente {
+  /** O valor opaco devolvido pela prévia. Uso único. */
+  approvalToken: string
+  task: ArgumentosDaTarefa
+  /**
+   * UUID escolhido por nós, **nunca derivado do conteúdo**. Quem gera é
+   * `novaChaveDeIdempotencia()`; quem repete uma tentativa reaproveita a MESMA chave.
+   */
+  idempotencyKey: string
+}
+
 /**
- * Cliente do contrato workspace-agent v1, versão `0.1.0`, hash
- * `3fc5e144…4609b` — recebido em CORA-001 e conferido nesta máquina.
+ * Cliente do contrato workspace-agent v1, versão `0.2.1`, hash `19009cb7…1b50e` —
+ * recebido em CORA-001/CORA-003 e recalculado nesta máquina.
  */
 export class WorkspaceClient {
   private readonly baseUrl: string
@@ -51,7 +78,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * As duas metades da credencial, conforme o contrato 0.1.0 (seção `securitySchemes`).
+   * As duas metades da credencial, conforme o contrato (seção `securitySchemes`).
    *
    * Nenhuma basta sozinha: o par de serviço diz QUE PROGRAMA está falando, o Bearer diz
    * EM NOME DE QUEM. Faltando qualquer uma, o Workspace responde 401.
@@ -76,14 +103,7 @@ export class WorkspaceClient {
     opts: { signal?: AbortSignal } = {},
   ): Promise<ListTasksResponse> {
     const parsed = ListTasksParamsSchema.safeParse(params)
-    if (!parsed.success) {
-      throw new WorkspaceApiError({
-        code: 'INVALID_INPUT',
-        message: `Parâmetros inválidos: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
-        httpStatus: null,
-        requestId: null,
-      })
-    }
+    if (!parsed.success) throw erroDeEntrada(parsed.error)
 
     const query = new URLSearchParams({
       scope: parsed.data.scope,
@@ -93,10 +113,135 @@ export class WorkspaceClient {
     if (parsed.data.cursor) query.set('cursor', parsed.data.cursor)
 
     const requestId = this.requestIdFactory()
-    const url = `${this.baseUrl}/api/agent/v1/tasks?${query.toString()}`
+    const response = await this.request(
+      { url: `${this.baseUrl}/api/agent/v1/tasks?${query.toString()}`, method: 'GET' },
+      requestId,
+      opts.signal,
+    )
+    return this.lerResposta(response, requestId, ListTasksResponseSchema)
+  }
 
-    const response = await this.request(url, requestId, opts.signal)
+  /**
+   * POST /api/agent/v1/tasks/preview — **leitura pura**.
+   *
+   * Não escreve nada, não consome cota de aprovação e pode ser refeita quantas vezes for
+   * preciso. É o que permite perguntar à pessoa e tentar de novo sem custo.
+   *
+   * ⚠️ **Prévia ambígua é `200`, não erro.** Vem com `approvalToken: null` e
+   * `ambiguidades[]` preenchido. Quem chama tem de olhar o token, não o status: tratar
+   * ambiguidade como falha faria a Cora repetir com os mesmos dados, em laço.
+   */
+  async previewTask(
+    pedido: PedidoDePrevia,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<RespostaDaPrevia> {
+    const parsed = PedidoDePreviaSchema.safeParse(pedido)
+    if (!parsed.success) throw erroDeEntrada(parsed.error)
 
+    const requestId = this.requestIdFactory()
+    const response = await this.request(
+      {
+        url: `${this.baseUrl}/api/agent/v1/tasks/preview`,
+        method: 'POST',
+        body: parsed.data,
+      },
+      requestId,
+      opts.signal,
+    )
+    const resposta = await this.lerResposta(response, requestId, RespostaDaPreviaSchema)
+
+    // Coerência interna: token junto com ambiguidade é o servidor se contradizendo, e
+    // aproveitá-lo seria gravar em cima de uma escolha que ninguém fez. A camada de
+    // apresentação também recusa isso; aqui a resposta nem chega a ser devolvida.
+    if (resposta.approvalToken !== null && resposta.ambiguidades.length > 0) {
+      throw new ContractViolationError(
+        'prévia veio com approvalToken E ambiguidades[] — autorização sobre escolha não feita',
+        requestId,
+      )
+    }
+    if (resposta.approvalToken === null && resposta.approvalExpiresAt !== null) {
+      throw new ContractViolationError(
+        'prévia sem approvalToken trouxe approvalExpiresAt',
+        requestId,
+      )
+    }
+    return resposta
+  }
+
+  /**
+   * POST /api/agent/v1/tasks — a criação de verdade.
+   *
+   * Três coisas que este método garante, e que são a razão de ele não ser um `fetch` solto:
+   *
+   * 1. **A `Idempotency-Key` é obrigatória e conferida no formato antes de sair.** Chave
+   *    malformada viraria `400` do outro lado depois de queimar uma viagem.
+   * 2. **`201` e `200` são resultados diferentes, e o `created` do corpo tem de concordar
+   *    com o status.** Discordar é violação de contrato: é o que faria a Cora anunciar
+   *    "criei" duas vezes para a mesma tarefa.
+   * 3. **Falha de transporte depois de enviar não vira "não criou".** Vira
+   *    `WriteOutcomeUnknownError`, com a chave dentro, para reconsultar com a MESMA chave.
+   */
+  async createTask(
+    pedido: PedidoDeCriacaoDoCliente,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<TarefaCriada> {
+    if (!IDEMPOTENCY_KEY_FORMATO.test(pedido.idempotencyKey)) {
+      throw new WorkspaceApiError({
+        code: 'INVALID_INPUT',
+        message:
+          'Idempotency-Key precisa ter o formato UUID (8-4-4-4-12 hexadecimal). ' +
+          'Ela é escolhida por nós e nunca derivada do conteúdo.',
+        httpStatus: null,
+        requestId: null,
+      })
+    }
+    if (pedido.approvalToken.length === 0) {
+      throw new WorkspaceApiError({
+        code: 'APPROVAL_INVALID',
+        message: 'Sem approvalToken não há o que executar: a prévia é que autoriza a gravação.',
+        httpStatus: null,
+        requestId: null,
+      })
+    }
+
+    const parsed = ArgumentosDaTarefaSchema.safeParse(pedido.task)
+    if (!parsed.success) throw erroDeEntrada(parsed.error)
+
+    const requestId = this.requestIdFactory()
+    const response = await this.request(
+      {
+        url: `${this.baseUrl}/api/agent/v1/tasks`,
+        method: 'POST',
+        body: { approvalToken: pedido.approvalToken, task: parsed.data },
+        headers: { 'Idempotency-Key': pedido.idempotencyKey },
+        idempotencyKey: pedido.idempotencyKey,
+      },
+      requestId,
+      opts.signal,
+    )
+
+    const criada = await this.lerResposta(response, requestId, TarefaCriadaSchema)
+
+    const esperado = response.status === 201
+    if (criada.created !== esperado) {
+      throw new ContractViolationError(
+        `HTTP ${response.status} com "created": ${criada.created} — status e corpo discordam ` +
+          'sobre a tarefa ter nascido agora',
+        requestId,
+      )
+    }
+    return criada
+  }
+
+  /**
+   * Lê o corpo, decide erro-ou-sucesso e valida a forma. Um caminho só para os três
+   * endpoints: duas leituras de resposta é como uma delas esquece de conferir a versão.
+   */
+  private async lerResposta<S extends z.ZodType<{ contractVersion: string }>>(
+    response: Response,
+    requestId: string,
+    schema: S,
+  ): Promise<z.infer<S>> {
     let body: unknown
     try {
       body = await response.json()
@@ -106,7 +251,7 @@ export class WorkspaceClient {
 
     if (!response.ok) throw toApiError(response.status, body, requestId)
 
-    const validated = ListTasksResponseSchema.safeParse(body)
+    const validated = schema.safeParse(body)
     if (!validated.success) {
       throw new ContractViolationError(
         validated.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
@@ -120,7 +265,6 @@ export class WorkspaceClient {
         requestId,
       )
     }
-
     return validated.data
   }
 
@@ -130,31 +274,61 @@ export class WorkspaceClient {
    * em voo consumindo conexão até o timeout.
    */
   private async request(
-    url: string,
+    req: {
+      url: string
+      method: 'GET' | 'POST'
+      body?: unknown
+      headers?: Record<string, string>
+      /** Presente só na escrita. É o que distingue "falhou" de "não sei se gravou". */
+      idempotencyKey?: string
+    },
     requestId: string,
     external?: AbortSignal,
   ): Promise<Response> {
     const controller = new AbortController()
-    if (external?.aborted) controller.abort()
+
+    // Cancelado ANTES de sair: aqui a Cora sabe que nada foi enviado, e essa certeza não
+    // pode ser perdida no caminho — mesmo numa escrita.
+    if (external?.aborted) {
+      throw new WorkspaceApiError({
+        code: 'UPSTREAM_UNAVAILABLE',
+        message: 'Chamada ao Workspace cancelada antes de sair da máquina',
+        httpStatus: null,
+        requestId,
+      })
+    }
+
     const onExternalAbort = () => controller.abort()
     external?.addEventListener('abort', onExternalAbort, { once: true })
 
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
     try {
-      return await this.fetchImpl(url, {
-        method: 'GET',
+      return await this.fetchImpl(req.url, {
+        method: req.method,
         headers: {
           ...this.authHeaders(),
+          ...(req.headers ?? {}),
           Accept: 'application/json',
           'X-Request-Id': requestId,
+          ...(req.body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
+        ...(req.body === undefined ? {} : { body: JSON.stringify(req.body) }),
         signal: controller.signal,
       })
     } catch (cause) {
-      // Rede fora, DNS, timeout. NUNCA vira lista vazia.
+      const message = abortMessage(cause, external, this.timeoutMs)
+      // Rede fora, DNS, timeout. NUNCA vira lista vazia — e, na escrita, nunca vira
+      // "não criou": o pedido pode ter chegado e sido gravado.
+      if (req.idempotencyKey !== undefined) {
+        throw new WriteOutcomeUnknownError({
+          message,
+          requestId,
+          idempotencyKey: req.idempotencyKey,
+        })
+      }
       throw new WorkspaceApiError({
         code: 'UPSTREAM_UNAVAILABLE',
-        message: abortMessage(cause, external, this.timeoutMs),
+        message,
         httpStatus: null,
         requestId,
       })
@@ -163,6 +337,15 @@ export class WorkspaceClient {
       external?.removeEventListener('abort', onExternalAbort)
     }
   }
+}
+
+function erroDeEntrada(error: z.ZodError): WorkspaceApiError {
+  return new WorkspaceApiError({
+    code: 'INVALID_INPUT',
+    message: `Parâmetros inválidos: ${error.issues.map((i) => i.message).join('; ')}`,
+    httpStatus: null,
+    requestId: null,
+  })
 }
 
 /** Distingue "o usuário cancelou" de "o Workspace não respondeu a tempo". */

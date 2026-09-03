@@ -31,9 +31,55 @@ export interface FerramentaParaMotor {
 }
 
 /**
- * Só entram aqui ferramentas que TÊM executor hoje. `workspace.tasks.create` está no
- * catálogo, mas o endpoint de escrita não existe no contrato 0.1.0 — descrever o
- * argumento dela agora seria inventar o contrato antes da resposta do CORA-003.
+ * Uma referência a cliente, projeto ou pessoa, como o MODELO pode expressá-la.
+ *
+ * ⚠️ **Exatamente um** entre `id` e `texto`, e o `oneOf` está aqui para o modelo ver a
+ * regra, não para confiarmos nele: `PedidoDePreviaSchema` recusa o par no cliente, antes
+ * de virar requisição, e o servidor recusaria de novo. Três camadas para a mesma regra
+ * porque "qual dos dois vale?" é uma pergunta que ninguém pode responder no lugar de quem
+ * falou.
+ */
+const REFERENCIA = {
+  oneOf: [
+    {
+      type: 'object',
+      properties: {
+        texto: {
+          type: 'string',
+          minLength: 2,
+          description:
+            'O nome COMO A PESSOA FALOU. Não normalize, não corrija e não complete: o ' +
+            'servidor é quem busca, e é ele que informa se achou um, nenhum ou vários.',
+        },
+      },
+      required: ['texto'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description:
+            'A escolha JÁ FEITA pela pessoa depois de uma desambiguação. Só use um id ' +
+            'que veio de uma prévia anterior desta mesma conversa. Nunca invente id.',
+        },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  ],
+} as const
+
+/**
+ * Só entram aqui ferramentas que TÊM executor hoje.
+ *
+ * ⚠️ **`workspace.tasks.create` recebe o pedido na forma da PRÉVIA, não na da execução.**
+ * O modelo descreve o que a pessoa quer — título, prioridade, prazo, e as referências por
+ * texto. Ele **não** vê, não escolhe e não pode fabricar o `approvalToken` nem a
+ * `Idempotency-Key`: o token nasce do servidor, na prévia, e a chave nasce da Cora. Se
+ * qualquer um dos dois fosse argumento de ferramenta, o modelo poderia produzir uma
+ * aprovação — e aprovação que o modelo produz não é aprovação de ninguém.
  */
 const ESQUEMAS: Readonly<Record<string, EsquemaFerramenta>> = {
   'workspace.tasks.list': {
@@ -53,6 +99,54 @@ const ESQUEMAS: Readonly<Record<string, EsquemaFerramenta>> = {
       },
     },
     required: [],
+    additionalProperties: false,
+  },
+  'workspace.tasks.create': {
+    type: 'object',
+    properties: {
+      titulo: {
+        type: 'string',
+        minLength: 3,
+        maxLength: 180,
+        description:
+          'O que a pessoa pediu, na frase dela. Entre 3 e 180 caracteres. Não acrescente ' +
+          'contexto que ela não deu.',
+      },
+      prioridade: {
+        type: 'string',
+        enum: ['BAIXA', 'NORMAL', 'ALTA'],
+        description:
+          'Só informe quando a pessoa disser. Omitido vira NORMAL, que é o padrão do ' +
+          'Workspace e aparece na prévia para ela conferir.',
+      },
+      prazo: {
+        type: 'string',
+        description:
+          'Data e hora em ISO 8601 COM FUSO explícito (por exemplo 2026-09-04T09:00:00-03:00). ' +
+          '⚠️ Omita se a pessoa não disse prazo. NUNCA use hoje, amanhã ou o fim do dia como ' +
+          'padrão: prazo que ninguém pediu é o erro mais fácil de não perceber, porque a ' +
+          'tarefa fica certa e só a data fica errada.',
+      },
+      cliente: {
+        ...REFERENCIA,
+        description:
+          'O cliente que a pessoa mencionou. Omita se ela não mencionou nenhum — ausência ' +
+          'é ausência, e não vira "o de sempre".',
+      },
+      projeto: {
+        ...REFERENCIA,
+        description: 'O projeto que a pessoa mencionou. Omita se ela não mencionou nenhum.',
+      },
+      responsaveis: {
+        type: 'array',
+        maxItems: 10,
+        items: REFERENCIA,
+        description:
+          'Quem vai fazer. Omita quando a pessoa não disse: lista vazia significa ela ' +
+          'mesma, e isso aparece na prévia marcado como padrão, para ela ler antes de aprovar.',
+      },
+    },
+    required: ['titulo'],
     additionalProperties: false,
   },
 }

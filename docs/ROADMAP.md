@@ -70,17 +70,42 @@ antes de saber a forma de idempotência que quero.
   continua **sem rede**. Trata recusa do provedor como erro visível, e não como resposta
   vazia; falha alto quando o pareamento entre chamada e resultado não bate.
 - **`tool-schemas.ts`** — só oferece ao modelo ferramenta que tem executor **e** esquema de
-  argumento. `workspace.tasks.create` fica de fora de propósito: o contrato de escrita não
-  chegou.
-- **Camada de prévia e idempotência** — tipos internos e **provisórios** até o CORA-003
-  responder. Travado por teste: ambiguidade vira pergunta e nunca prévia pronta; token
-  vindo junto com ambiguidade é recusado; prazo ausente aparece como ausente e a palavra
-  "hoje" não surge; argumento diferente do aprovado é barrado antes de sair da máquina;
-  e a chave de idempotência é UUID v4 que **não** deriva do conteúdo.
+  argumento.
+- **Camada de prévia e idempotência** — travada por teste: ambiguidade vira pergunta e
+  nunca prévia pronta; token vindo junto com ambiguidade é recusado; prazo ausente aparece
+  como ausente e a palavra "hoje" não surge; argumento diferente do aprovado é barrado
+  antes de sair da máquina; e a chave de idempotência é UUID v4 que **não** deriva do
+  conteúdo.
 - Duas revisões especialistas acharam **dois bloqueantes**, ambos corrigidos com teste:
   o histórico de um turno vazando para o seguinte, e amplificação de custo por título de
   tarefa sem tamanho máximo no contrato.
-- Suíte em **140 testes**, `typecheck` limpo, `pnpm audit` limpo.
+
+**Feito depois da resposta do CORA-003 (03/09/2026, mesma data):**
+
+- **Schemas da escrita** (`packages/contracts/.../write.ts`) — prévia, criação, argumentos,
+  ambiguidade, divergência e mudança, campo a campo como no YAML vendorizado. Uma régua é
+  **mais estrita** que a do servidor de propósito: prazo exige fuso explícito (`Z` ou
+  `±HH:MM`), porque `"2026-09-04T09:00:00"` é aceito pelo JavaScript e interpretado no fuso
+  de quem interpreta — num campo que é prazo, isso é a tarefa vencendo no dia errado sem
+  ninguém ter errado nada.
+- **Os seis códigos de erro da escrita** — `APPROVAL_INVALID`, `APPROVAL_EXPIRED`,
+  `APPROVAL_MISMATCH`, `APPROVAL_ALREADY_USED`, `PRECONDITION_CHANGED` e
+  `IDEMPOTENCY_CONFLICT`. Nenhum deles é transitório, e há teste travando isso: repetir
+  conflito às cegas é exatamente como se cria a segunda tarefa.
+- **`previewTask()` e `createTask()`** no cliente. Três garantias com teste:
+  a `Idempotency-Key` é conferida no formato antes de sair; `201` e `200` são fatos
+  diferentes e o `created` do corpo **tem** de concordar com o status; e falha de
+  transporte **depois** de enviar vira `WriteOutcomeUnknownError` com a chave dentro —
+  nunca "não criou", que é o que faria a Cora repetir e criar a segunda tarefa.
+- **Esquema de `workspace.tasks.create`** — o modelo descreve o pedido na forma da
+  **prévia** e **não vê** `approvalToken` nem `Idempotency-Key`. Há teste que varre o JSON
+  do esquema atrás dos dois nomes: aprovação que o modelo produz não é aprovação de ninguém.
+- **Camada de prévia revisada contra a forma real do 0.2.1.** O que a revisão corrigiu:
+  `responsavel` no singular virou `responsaveis[]` (o segundo responsável sumiria da tela);
+  entraram `projeto` e `prioridade`, que não existiam na forma provisória; e o texto que
+  prometia *"posso criar sem vínculo"* saiu — com o 0.2.1, referência **pedida** que não
+  resolve zera o token, então a oferta não teria como ser cumprida.
+- Suíte em **211 testes**, `typecheck` limpo, `pnpm audit` limpo.
 
 **CORA-003 respondido em 03/09/2026, e o contrato subiu para 0.2.1** (hash
 `19009cb7…1b50e`, recalculado aqui antes de gravar; a 0.2.1 é mudança só de texto
@@ -109,8 +134,16 @@ O que o WORKSPACE definiu, e que muda o desenho:
   diferente criaria duas tarefas se não fosse isso.
 - **Título normalizado em NFC** por eles — não normalizamos aqui.
 
-**Ainda bloqueado:** os três revisores especialistas do WORKSPACE estavam rodando quando a
-janela deles fechou. `createTask` não é implementado antes desse veredito.
+**Desbloqueado em 03/09/2026:** os três revisores especialistas do WORKSPACE fecharam, o
+PR #180 foi mesclado como `c8affb1` com CI 3/3 verde, e o `:4319` local serve os dois
+endpoints novos — conferido por requisição real, que responde `401` (e não `404`) nas duas
+rotas: o porteiro está na frente delas.
+
+**O que ainda falta para a fase fechar, e é só isto:** rodar
+`scripts/verificacao-fase-02.ts` contra o `:4319` e gravar a evidência no
+`tickets/CORA-003/acceptance.md`. **Mock não conclui integração** — os 211 testes provam o
+comportamento do cliente diante de cada resposta que o contrato permite, não que o
+Workspace responda assim.
 
 **Não verificado, e não vale alegar que foi:** nenhuma chamada real ao provedor de modelo
 foi feita. A qualidade da extração de intenção em português **não** foi medida.
