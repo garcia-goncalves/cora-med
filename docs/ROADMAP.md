@@ -9,7 +9,7 @@ não é `feito`.
 |---|---|---|
 | 0 | Inventário, decisão do motor, contrato, coordenação | **feito** |
 | 1 | Consulta autenticada de tarefas | **feito e comprovado** |
-| 2 | Conversa e criação de tarefa | não iniciada |
+| 2 | Conversa e criação de tarefa | **em andamento** |
 | 3 | Organização e resumo operacional | não iniciada |
 | 4 | Acesso Windows e PWA Android | não iniciada |
 | 5 | Voz | não iniciada |
@@ -42,9 +42,10 @@ Contrato `workspace-agent-v1` **0.1.0** fixado por versão **e** hash
 três cabeçalhos e duas identidades — a suposição anterior estava errada, e é por isso que
 esta fase ficou `blocked` em vez de "quase pronta".
 
-**16 de 16 verificações passaram contra o Workspace real** (`scripts/verificacao-fase-01.ts`),
+**22 de 22 verificações passaram contra o Workspace real** (`scripts/verificacao-fase-01.ts`),
 incluindo isolamento A/B com dado dos dois lados e o título com injeção de prompt chegando
-ao motor embrulhado, ponta a ponta. Evidência completa em
+ao motor embrulhado, ponta a ponta. Foram 16 no aceite do CORA-001 e 22 depois que o
+CORA-002 fechou as lacunas de escopo insuficiente e revogação. Evidência completa em
 `med-coordination/evidence/cora/2026-09-03-fase-01-tarefas.md`.
 
 **O que NÃO foi validado, e não vale alegar que foi:** `403` de usuário desativado, `403`
@@ -52,17 +53,42 @@ por escopo insuficiente (não há caminho documentado — CORA-002), `403` de co
 (barrada antes, na emissão), `429` dos freios, `503` com banco caído, e revogação (provei
 expiração, que usa o mesmo código).
 
-## Fase 2 — próxima
+## Fase 2 — em andamento
 
 Conversa e criação de tarefa com prévia e idempotência. Precisa de endpoint de escrita, que
 não existe no contrato 0.1.0. O plano vem antes do ticket: não peço contrato de escrita
 antes de saber a forma de idempotência que quero.
 
+**Feito, com teste local verde (03/09/2026):**
+
+- **ADR 0002** — provedor e modelo escolhidos, com **preço lido na página oficial na data**
+  e transcrito para `pricing.ts` junto com a data. Modelo fora da tabela produz custo
+  `null`, nunca zero, e há teste que reprova a tabela quando ela passa de 180 dias.
+- **`AnthropicMotor`** — primeiro `MotorPort` de verdade. Cliente por injeção: a suíte
+  continua **sem rede**. Trata recusa do provedor como erro visível, e não como resposta
+  vazia; falha alto quando o pareamento entre chamada e resultado não bate.
+- **`tool-schemas.ts`** — só oferece ao modelo ferramenta que tem executor **e** esquema de
+  argumento. `workspace.tasks.create` fica de fora de propósito: o contrato de escrita não
+  chegou.
+- Suíte em **103 testes**, `typecheck` limpo.
+
+**Bloqueado por terceiro:** o endpoint de escrita depende da resposta do **CORA-003**, que
+segue `proposed`. Nada de escrita é implementado antes dela.
+
+**Não verificado, e não vale alegar que foi:** nenhuma chamada real ao provedor de modelo
+foi feita. A qualidade da extração de intenção em português **não** foi medida.
+
 ## O que aparece como indisponível, e vai continuar assim
 
-Conversa com modelo, criação de tarefa, voz, wake word, desktop Windows, PWA Android,
-automação de navegador, e-mail proativo, orçamento de custo com preço real. Nenhuma dessas
-coisas ganha botão com sucesso simulado.
+Criação de tarefa, voz, wake word, desktop Windows, PWA Android, automação de navegador e
+e-mail proativo. Nenhuma dessas coisas ganha botão com sucesso simulado.
+
+**Conversa com modelo** saiu desta lista pela metade, e a metade importa: o adaptador
+existe e é testado, mas **não há servidor que o exponha** — nenhum processo desta casa
+escuta em porta. Contar como pronto seria contar `scaffold compila` como `feito`.
+
+**Orçamento de custo** também saiu pela metade: o preço é real e datado, e o cálculo por
+passo existe. O que não existe é medição de uso real, porque nenhuma chamada foi feita.
 
 ## Controles que acompanham toda fase, não a fase 7
 
