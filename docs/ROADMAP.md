@@ -105,7 +105,8 @@ antes de saber a forma de idempotência que quero.
   entraram `projeto` e `prioridade`, que não existiam na forma provisória; e o texto que
   prometia *"posso criar sem vínculo"* saiu — com o 0.2.1, referência **pedida** que não
   resolve zera o token, então a oferta não teria como ser cumprida.
-- Suíte em **211 testes**, `typecheck` limpo, `pnpm audit` limpo.
+- `typecheck` limpo e `pnpm audit` limpo. A contagem de testes não fica aqui: ela só
+  envelhece — rode `pnpm run test` para o número de agora.
 
 **CORA-003 respondido em 03/09/2026, e o contrato subiu para 0.2.1** (hash
 `19009cb7…1b50e`, recalculado aqui antes de gravar; a 0.2.1 é mudança só de texto
@@ -141,9 +142,8 @@ rotas: o porteiro está na frente delas.
 
 **O que ainda falta para a fase fechar, e é só isto:** rodar
 `scripts/verificacao-fase-02.ts` contra o `:4319` e gravar a evidência no
-`tickets/CORA-003/acceptance.md`. **Mock não conclui integração** — os 211 testes provam o
-comportamento do cliente diante de cada resposta que o contrato permite, não que o
-Workspace responda assim.
+`tickets/CORA-003/acceptance.md`. **Mock não conclui integração** — a suíte prova o comportamento do
+cliente diante de cada resposta que o contrato permite, não que o Workspace responda assim.
 
 **Não verificado, e não vale alegar que foi:** nenhuma chamada real ao provedor de modelo
 foi feita. A qualidade da extração de intenção em português **não** foi medida.

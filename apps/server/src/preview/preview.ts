@@ -142,9 +142,17 @@ export function traduzirPrevia(
   }
 }
 
-/** O texto que foi buscado, quando houve busca por texto. `id` não tem texto. */
+/**
+ * Como nomear, para a Thaís, a coisa que foi pedida e não foi encontrada.
+ *
+ * Busca por texto tem o texto. Escolha por `id` não tem — e aí o id é a única coisa
+ * honesta a mostrar: dizer "não encontrei" sem dizer o quê é uma frase que não permite a
+ * ela corrigir nada.
+ */
 function textoPedido(ref: { id?: string; texto?: string } | null | undefined): string {
-  return ref?.texto ?? ''
+  if (ref?.texto !== undefined) return ref.texto
+  if (ref?.id !== undefined) return `id ${ref.id}`
+  return '(não sei o que foi buscado)'
 }
 
 function traduzirReferencia(
@@ -175,16 +183,12 @@ function traduzirReferencia(
     case 'NAO_ENCONTRADO':
       return {
         estado: 'nao_encontrada',
-        termoBuscado: termoBuscado || ambiguoOuVazio(resposta, campo),
+        termoBuscado,
         motivo: 'nada com esse nome que você possa ver',
       }
     default:
       return { estado: 'ausente' }
   }
-}
-
-function ambiguoOuVazio(resposta: RespostaDaPrevia, campo: string): string {
-  return resposta.ambiguidades.find((a) => a.campo === campo)?.texto ?? '(não sei o que foi buscado)'
 }
 
 /**
