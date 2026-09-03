@@ -4,9 +4,10 @@ Assistente empresarial da MedConsultoria, em português do Brasil. Ajuda a Thaí
 organizar a operação, consultar informações, preparar documentos, registrar pedidos e
 executar ações autorizadas no Workspace.
 
-**Estado hoje (02/09/2026): Fase 0.** Existe a fundação — contratos, cliente HTTP,
-política de execução, laço de agente e testes. **Ainda não houve nenhuma conversa com o
-Workspace real.** Ver `docs/ROADMAP.md` para o que é verdade e o que ainda não é.
+**Estado hoje (03/09/2026): Fases 0 e 1 concluídas.** A Cora consulta as tarefas internas
+do usuário no Workspace por API versionada, com identidade delegada — **comprovado por HTTP
+real**, não por mock: 16 verificações contra um Workspace local, incluindo isolamento entre
+usuários. Ver `docs/ROADMAP.md` para o que é verdade e o que ainda não é.
 
 ## Como rodar
 
@@ -18,17 +19,16 @@ pnpm run test
 pnpm run typecheck
 ```
 
-`pnpm run test` roda 69 testes contra fixtures sintéticas. Nenhum teste faz rede,
+`pnpm run test` roda 77 testes contra fixtures sintéticas. Nenhum teste faz rede,
 nenhum usa dado real, nenhum envia e-mail.
 
-A integração real com o Workspace é outro comando, e ele se recusa a rodar até o
-contrato existir:
+A integração real com o Workspace é outro comando, e precisa de um Workspace local no ar
+(passo a passo em `docs/OPERATIONS.md`):
 
 ```bash
-pnpm run integracao:tarefas
+pnpm run integracao:tarefas          # uma consulta real
+pnpm exec tsx scripts/verificacao-fase-01.ts   # as 16 verificações
 ```
-
-Hoje ele responde `BLOQUEADO` e sai com código 1. Isso é o comportamento correto.
 
 ## Como o repositório é organizado
 
@@ -57,7 +57,6 @@ permissão é o Workspace, sempre.
 
 Nada disto existe hoje, e nenhum botão vai fingir que existe:
 
-- consultar o Workspace de verdade (falta o contrato — ticket CORA-001);
 - criar tarefa;
 - conversar com um modelo de linguagem;
 - voz, wake word, aplicativo Windows, PWA Android;

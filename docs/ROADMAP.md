@@ -1,14 +1,14 @@
 # Roteiro da Cora — o que é verdade e o que ainda não é
 
-Atualizado em 02/09/2026. Fases conforme o briefing, seção 14.
+Atualizado em 03/09/2026. Fases conforme o briefing, seção 14.
 
 A coluna **estado** só diz `feito` quando existe evidência executada. `scaffold compila`
 não é `feito`.
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| 0 | Inventário, decisão do motor, contrato, coordenação | **parcial** |
-| 1 | Consulta autenticada de tarefas | **bloqueada** — falta contrato |
+| 0 | Inventário, decisão do motor, contrato, coordenação | **feito** |
+| 1 | Consulta autenticada de tarefas | **feito e comprovado** |
 | 2 | Conversa e criação de tarefa | não iniciada |
 | 3 | Organização e resumo operacional | não iniciada |
 | 4 | Acesso Windows e PWA Android | não iniciada |
@@ -28,28 +28,35 @@ não é `feito`.
 - Script de integração existe e **recusa rodar** sem contrato fixado (verificado:
   código de saída 1).
 
-**Falta para fechar a Fase 0:** o critério do briefing é "os dois Claudes trocam CORA-001
-e registram resposta". A resposta do WORKSPACE ainda não existe.
+**Fase 0 fechada em 03/09/2026:** os dois Claudes trocaram CORA-001, o WORKSPACE registrou
+a resposta com contrato e evidências, e a CORA registrou a aceitação — sem nenhum dos dois
+alterar o repositório do outro.
 
 **Limitação declarada:** a avaliação do Hermes foi estática, via API do GitHub. O Hermes
 não foi instalado nem executado nesta máquina.
 
-## Fase 1 — o que está bloqueado e por quê
+## Fase 1 — feita e comprovada (03/09/2026)
 
-Plano completo em `docs/plans/phase-01.md`.
+Contrato `workspace-agent-v1` **0.1.0** fixado por versão **e** hash
+(`3fc5e144…4609b`, recalculado aqui antes de gravar). Autenticação real implementada: são
+três cabeçalhos e duas identidades — a suposição anterior estava errada, e é por isso que
+esta fase ficou `blocked` em vez de "quase pronta".
 
-Falta de `med-coordination/tickets/CORA-001/response.md`:
+**16 de 16 verificações passaram contra o Workspace real** (`scripts/verificacao-fase-01.ts`),
+incluindo isolamento A/B com dado dos dois lados e o título com injeção de prompt chegando
+ao motor embrulhado, ponta a ponta. Evidência completa em
+`med-coordination/evidence/cora/2026-09-03-fase-01-tarefas.md`.
 
-1. `workspace-agent-v1.openapi.yaml` 0.1.0 e seu SHA-256;
-2. o formato real de autenticação de serviço + delegação;
-3. como subir um Workspace local com banco isolado e dados sintéticos;
-4. como gerar token de teste válido, expirado e revogado.
+**O que NÃO foi validado, e não vale alegar que foi:** `403` de usuário desativado, `403`
+por escopo insuficiente (não há caminho documentado — CORA-002), `403` de conta de Portal
+(barrada antes, na emissão), `429` dos freios, `503` com banco caído, e revogação (provei
+expiração, que usa o mesmo código).
 
-Sem 1 e 2, o cliente HTTP está chutando nomes de header. Sem 3 e 4, não existe alvo.
+## Fase 2 — próxima
 
-**Próximo comando humano:** abrir a janela do Workspace, colar o prompt da seção 17 do
-briefing e, quando houver resposta, dizer na janela da Cora:
-**"Leia a caixa de entrada de coordenação e prossiga"**.
+Conversa e criação de tarefa com prévia e idempotência. Precisa de endpoint de escrita, que
+não existe no contrato 0.1.0. O plano vem antes do ticket: não peço contrato de escrita
+antes de saber a forma de idempotência que quero.
 
 ## O que aparece como indisponível, e vai continuar assim
 

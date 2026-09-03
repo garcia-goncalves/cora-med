@@ -11,8 +11,8 @@
  * Uso:
  *   pnpm run integracao:tarefas
  *
- * Variáveis necessárias: WORKSPACE_BASE_URL, WORKSPACE_SERVICE_TOKEN,
- * WORKSPACE_DELEGATION_TOKEN. Os valores nunca são impressos.
+ * Variáveis necessárias: WORKSPACE_BASE_URL, WORKSPACE_AGENT_CLIENT,
+ * WORKSPACE_AGENT_SECRET, WORKSPACE_DELEGATION_TOKEN. Os valores nunca são impressos.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -87,7 +87,8 @@ async function main(): Promise<void> {
 
   const client = new WorkspaceClient({
     baseUrl: exigir('WORKSPACE_BASE_URL'),
-    serviceToken: exigir('WORKSPACE_SERVICE_TOKEN'),
+    serviceClientId: exigir('WORKSPACE_AGENT_CLIENT'),
+    serviceSecret: exigir('WORKSPACE_AGENT_SECRET'),
     delegationToken: exigir('WORKSPACE_DELEGATION_TOKEN'),
     timeoutMs: timeoutMs(),
   })

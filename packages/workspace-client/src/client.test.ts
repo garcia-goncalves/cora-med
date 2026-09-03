@@ -16,7 +16,8 @@ import { collectAllTasks } from './pagination.js'
 function makeClient(fetchImpl: typeof fetch) {
   return new WorkspaceClient({
     baseUrl: 'http://localhost:3000',
-    serviceToken: 'SYNTH-placeholder-service',
+    serviceClientId: 'SYNTH-placeholder-client',
+    serviceSecret: 'SYNTH-placeholder-service',
     delegationToken: 'SYNTH-placeholder-delegation',
     fetchImpl,
     requestIdFactory: () => 'SYNTH-request-id',
@@ -55,6 +56,9 @@ describe('WorkspaceClient.listTasks — caminho feliz', () => {
       'http://localhost:3000/api/agent/v1/tasks?scope=mine&status=open&limit=5&cursor=SYNTH-cursor',
     )
     expect(capturedHeaders?.get('x-request-id')).toBe('SYNTH-request-id')
+    // As DUAS metades da credencial, conforme o contrato 0.1.0.
+    expect(capturedHeaders?.get('x-agent-client')).toBe('SYNTH-placeholder-client')
+    expect(capturedHeaders?.get('x-agent-secret')).toBe('SYNTH-placeholder-service')
     expect(capturedHeaders?.get('authorization')).toBe('Bearer SYNTH-placeholder-delegation')
   })
 
@@ -193,7 +197,8 @@ describe('WorkspaceClient.listTasks — cancelamento externo', () => {
   it('timeout continua sendo relatado como timeout, não como cancelamento', async () => {
     const client = new WorkspaceClient({
       baseUrl: 'http://localhost:3000',
-      serviceToken: 'SYNTH-placeholder-service',
+      serviceClientId: 'SYNTH-placeholder-client',
+      serviceSecret: 'SYNTH-placeholder-service',
       delegationToken: 'SYNTH-placeholder-delegation',
       timeoutMs: 5,
       requestIdFactory: () => 'SYNTH-request-id',
@@ -275,6 +280,55 @@ describe('paginação', () => {
     expect(tasks).toHaveLength(25)
     expect(new Set(tasks.map((t) => t.id)).size).toBe(25)
     expect(tasks.map((t) => t.id)).toEqual(todas.map((t) => t.id))
+  })
+
+  it('cursor recusado no meio da listagem faz RECOMEÇAR, não falhar', async () => {
+    // Contrato 0.1.0 §8.2: o cursor é assinado e preso à pessoa; trocar o segredo de
+    // sessão do Workspace invalida os cursores em voo. Isso não é defeito — é recomeço.
+    const todas = fixtures.tarefasSinteticas(15)
+    let jaRecusou = false
+    const client = makeClient(async (url) => {
+      const cursor = new URL(String(url)).searchParams.get('cursor')
+      if (cursor !== null && !jaRecusou) {
+        jaRecusou = true
+        return jsonResponse(400, {
+          error: { code: 'INVALID_INPUT', message: 'cursor inválido', requestId: 'SYNTH-req' },
+        })
+      }
+      const inicio = cursor === null ? 0 : Number(cursor)
+      const pagina = todas.slice(inicio, inicio + 10)
+      return jsonResponse(200, {
+        contractVersion: '0.1.0',
+        items: pagina,
+        nextCursor: inicio + 10 < todas.length ? String(inicio + 10) : null,
+      })
+    })
+
+    const { tasks } = await collectAllTasks(client, { limit: 10 })
+
+    expect(jaRecusou).toBe(true)
+    expect(tasks).toHaveLength(15)
+    expect(new Set(tasks.map((t) => t.id)).size).toBe(15)
+  })
+
+  it('cursor recusado DUAS vezes desiste, em vez de girar para sempre', async () => {
+    const client = makeClient(async (url) => {
+      const cursor = new URL(String(url)).searchParams.get('cursor')
+      if (cursor !== null) {
+        return jsonResponse(400, {
+          error: { code: 'INVALID_INPUT', message: 'cursor inválido', requestId: 'SYNTH-req' },
+        })
+      }
+      return jsonResponse(200, {
+        contractVersion: '0.1.0',
+        items: fixtures.tarefasSinteticas(10),
+        nextCursor: 'p2',
+      })
+    })
+
+    await expect(collectAllTasks(client, { limit: 10 })).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    })
   })
 
   it('id repetido entre páginas é violação de contrato, não lista inflada', async () => {

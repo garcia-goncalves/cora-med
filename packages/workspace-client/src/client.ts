@@ -11,8 +11,10 @@ import { ContractViolationError, toApiError, WorkspaceApiError } from './errors.
 
 export interface WorkspaceClientOptions {
   baseUrl: string
-  /** Identidade do SERVIÇO Cora. Distinta da identidade do usuário. */
-  serviceToken: string
+  /** Metade 1 da identidade do SERVIÇO Cora: quem é o programa (`AgentClient`). */
+  serviceClientId: string
+  /** Metade 2: o segredo correspondente. Aparece uma vez na emissão e vira hash no banco. */
+  serviceSecret: string
   /**
    * Token de delegação que representa o usuário humano. O Workspace deriva o
    * `requesterUserId` DAQUI. A Cora nunca envia `userId` solto esperando ser obedecida.
@@ -26,15 +28,13 @@ export interface WorkspaceClientOptions {
 }
 
 /**
- * Cliente do contrato workspace-agent v1.
- *
- * O nome dos headers de autenticação é uma SUPOSIÇÃO até o WORKSPACE publicar o
- * contrato (ticket CORA-001, item 3). Está isolado em `authHeaders()` justamente para
- * que a correção seja de uma função só.
+ * Cliente do contrato workspace-agent v1, versão `0.1.0`, hash
+ * `3fc5e144…4609b` — recebido em CORA-001 e conferido nesta máquina.
  */
 export class WorkspaceClient {
   private readonly baseUrl: string
-  private readonly serviceToken: string
+  private readonly serviceClientId: string
+  private readonly serviceSecret: string
   private readonly delegationToken: string
   private readonly timeoutMs: number
   private readonly fetchImpl: typeof fetch
@@ -42,18 +42,27 @@ export class WorkspaceClient {
 
   constructor(opts: WorkspaceClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, '')
-    this.serviceToken = opts.serviceToken
+    this.serviceClientId = opts.serviceClientId
+    this.serviceSecret = opts.serviceSecret
     this.delegationToken = opts.delegationToken
     this.timeoutMs = opts.timeoutMs ?? 10_000
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch
     this.requestIdFactory = opts.requestIdFactory ?? (() => crypto.randomUUID())
   }
 
+  /**
+   * As duas metades da credencial, conforme o contrato 0.1.0 (seção `securitySchemes`).
+   *
+   * Nenhuma basta sozinha: o par de serviço diz QUE PROGRAMA está falando, o Bearer diz
+   * EM NOME DE QUEM. Faltando qualquer uma, o Workspace responde 401.
+   *
+   * A Cora não envia `userId` em lugar nenhum — não existe esse parâmetro no contrato.
+   */
   private authHeaders(): Record<string, string> {
     return {
-      // SUPOSIÇÃO — confirmar em tickets/CORA-001/response.md.
+      'X-Agent-Client': this.serviceClientId,
+      'X-Agent-Secret': this.serviceSecret,
       Authorization: `Bearer ${this.delegationToken}`,
-      'X-Cora-Service-Token': this.serviceToken,
     }
   }
 

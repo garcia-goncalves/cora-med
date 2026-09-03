@@ -9,9 +9,12 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 - **A CORA é a única operadora de Git em `med-coordination`** nesta máquina.
 - **Produção nunca lê de `med-coordination`.** Contrato aceito é copiado para
   `packages/contracts/`.
-- **Mock não conclui integração.** Enquanto `CONTRACT_SHA256` for `null` em
-  `packages/contracts/src/workspace-agent/v1/tasks.ts`, a Fase 1 está bloqueada, e
-  `scripts/integracao-tarefas.ts` se recusa a rodar.
+- **Contrato fixado por versão E hash.** `workspace-agent-v1` 0.1.0, hash `3fc5e144…4609b`,
+  copiado para `packages/contracts/src/workspace-agent/v1/contrato/`. Há teste que rehasheia
+  o arquivo: trocar o YAML sem trocar a constante quebra a suíte. Mudança de contrato é
+  ticket, nunca edição local.
+- **Mock não conclui integração.** A prova é `scripts/verificacao-fase-01.ts` contra um
+  Workspace real; `pnpm run test` não faz rede e nunca fará.
 - **Fixture é marcada.** Todo dado de teste usa o prefixo `SYNTH-`.
 - **Vazio ≠ erro.** "Nenhuma tarefa aberta" e "não consegui consultar" são frases
   diferentes, sempre. Há teste que trava isso.
@@ -35,6 +38,6 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 
 ```bash
 pnpm install
-pnpm run test        # 69 testes, sem rede
+pnpm run test        # 77 testes, sem rede
 pnpm run typecheck
 ```

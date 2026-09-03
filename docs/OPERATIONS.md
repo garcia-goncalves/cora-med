@@ -11,7 +11,7 @@ pnpm run test
 pnpm run typecheck
 ```
 
-**O que aparece se der certo:** `Test Files 3 passed (3)` e `Tests 69 passed (69)`.
+**O que aparece se der certo:** `Test Files 3 passed (3)` e `Tests 77 passed (77)`.
 O typecheck não imprime nada quando passa — silêncio é sucesso.
 
 **Se der errado:** `ERR_PNPM_...` normalmente é falta de rede na hora do install; rode
@@ -27,8 +27,10 @@ Enquanto isso não muda, a lista canônica é esta:
 # URL do Workspace local com banco isolado (Fase 1).
 WORKSPACE_BASE_URL=http://localhost:3000
 
-# Credencial do SERVIÇO Cora. Identidade do serviço, não do usuário.
-WORKSPACE_SERVICE_TOKEN=
+# Credencial do SERVIÇO Cora — DUAS metades, conforme o contrato 0.1.0.
+# Emitidas por `pnpm agente cliente --nome <nome>`, no repositório do Workspace.
+WORKSPACE_AGENT_CLIENT=
+WORKSPACE_AGENT_SECRET=
 
 # Token de delegação que representa o usuário humano. Expira e é revogável.
 # Formato exato definido pelo contrato workspace-agent-v1 (ticket CORA-001).
@@ -56,20 +58,48 @@ Nenhum valor real de segredo entra em arquivo versionado. `.env` está no `.giti
 pnpm run integracao:tarefas
 ```
 
-**Hoje isto responde:**
+O contrato está fixado (0.1.0, hash `3fc5e144…4609b`), então o script roda. Ele imprime
+data, SHA dos dois repositórios, versão do contrato, alvo, resultado, número de páginas e
+os **ids** das tarefas — sem título, para não vazar conteúdo.
 
+**Antes** é preciso subir o Workspace local e emitir credenciais, no repositório dele:
+
+```bash
+cd /c/Users/Desktop/source/repos/workspace-medconsultoria
+pnpm db:up && pnpm dev            # API em :4319, MySQL em 127.0.0.1:3307
+pnpm contas:teste                 # admin@teste.local etc., senha teste1234
+pnpm agente cliente --nome cora-dev
+pnpm agente delegar --cliente <clientId> --email admin@teste.local --minutos 60
 ```
-BLOQUEADO: o contrato workspace-agent-v1 ainda não foi fixado nesta cópia.
+
+**Confira que subiu:** `curl -s http://localhost:4319/health` → `{"status":"ok",...}`.
+
+⚠️ **Nunca rode `pnpm --filter @app/api test` no Workspace** — parte das integrações dele
+envia e-mail de verdade. Esta sessão não executou a suíte de lá.
+
+⚠️ **O segredo do serviço e o token aparecem UMA vez.** Perdeu, emita outro.
+
+## Verificação completa da Fase 1
+
+```bash
+WORKSPACE_BASE_URL=http://localhost:4319 \
+WORKSPACE_AGENT_CLIENT=... WORKSPACE_AGENT_SECRET=... \
+TOKEN_A=... TOKEN_B=... TOKEN_EXPIRADO=... \
+pnpm exec tsx scripts/verificacao-fase-01.ts
 ```
 
-e sai com código 1. **Isso está correto** — é a trava que impede confundir mock com
-integração. Ela some quando `CONTRACT_SHA256` deixar de ser `null` em
-`packages/contracts/src/workspace-agent/v1/tasks.ts`, o que só acontece depois da resposta
-do WORKSPACE em CORA-001.
+**O que aparece se der certo:** uma tabela de 16 linhas e
+`TODAS AS 16 VERIFICAÇÕES PASSARAM`, com código de saída 0.
 
-Quando destravar, o script imprime data, SHA dos dois repositórios, versão do contrato,
-alvo, resultado, número de páginas e os **ids** das tarefas — sem título, para não vazar
-conteúdo. Essa saída é a evidência que vai para `med-coordination/evidence/cora/`.
+Este script **não** entra em `pnpm run test`: a suíte padrão continua sem rede. `TOKEN_B`
+é a delegação de `funcionario@teste.local` (o "usuário B" do isolamento) e `TOKEN_EXPIRADO`
+sai de `pnpm agente delegar ... --minutos -1`.
+
+O cenário A/B precisa de dados nos dois lados; sem isso o teste de isolamento passa por
+vacuidade e não prova nada. As fixtures usadas estão descritas na evidência
+`med-coordination/evidence/cora/2026-09-03-fase-01-tarefas.md` (prefixo `CORA-T-`,
+rollback de duas linhas). CORA-002 pede ao WORKSPACE um comando de semeadura, para isso
+deixar de ser SQL nosso.
 
 ## Coordenação entre as duas sessões
 

@@ -3,22 +3,25 @@ import { z } from 'zod'
 /**
  * Schemas do endpoint GET /api/agent/v1/tasks do Workspace.
  *
- * ATENÇÃO: estes schemas são a leitura que a CORA fez do briefing (seção 7) e do
- * schema Prisma do Workspace. O contrato canônico é
- * `contracts/workspace-agent-v1.openapi.yaml`, de autoria do WORKSPACE, e ainda NÃO foi
- * publicado. Quando for, `CONTRACT_SHA256` abaixo passa a carregar o hash real e estes
- * schemas são reconciliados com o YAML antes de qualquer chamada real.
+ * O contrato canônico é de autoria do WORKSPACE. A cópia vive em
+ * `./contrato/workspace-agent-v1.openapi.yaml` — produção nunca lê de `med-coordination`.
+ * Estes schemas foram reconciliados com aquele YAML em 03/09/2026; as divergências
+ * deliberadas estão anotadas onde ocorrem.
  */
 
 /** Versão do contrato que esta cópia espera. */
 export const CONTRACT_VERSION = '0.1.0' as const
 
 /**
- * SHA-256 do arquivo OpenAPI, fixado no repositório da Cora.
- * `null` = contrato ainda não recebido. O cliente HTTP se recusa a rodar em modo
- * "integração real" enquanto for null — para que ninguém confunda mock com integração.
+ * SHA-256 do arquivo OpenAPI, fixado aqui. Recebido em CORA-001 e **recalculado de forma
+ * independente** nesta máquina antes de ser gravado.
+ *
+ * `null` significaria contrato ainda não recebido, e trava a integração real.
+ * Há teste que rehasheia o arquivo vendorizado e compara com esta constante: se alguém
+ * trocar o YAML sem trocar o hash, a suíte quebra.
  */
-export const CONTRACT_SHA256: string | null = null
+export const CONTRACT_SHA256: string | null =
+  '3fc5e144c68f319b1e8bb64269bbc4bd55f0e4b903d75b23b3247529b1c4609b'
 
 export const TaskStatusSchema = z.enum(['PENDENTE', 'FAZENDO'])
 export type TaskStatus = z.infer<typeof TaskStatusSchema>
