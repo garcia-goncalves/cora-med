@@ -1,0 +1,40 @@
+name: CI
+
+# `push` sem lista de branch, de propósito: com `branches: [main]`, o trabalho que
+# continua num branch depois do merge fica sem CI nenhuma, e o silêncio parece aprovação.
+on:
+  push:
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+
+# Os dois eventos do MESMO branch caem no mesmo balde e um cancela o outro. É o que
+# impede commit em rajada de abrir verificações paralelas em que só a última importa.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+# O GITHUB_TOKEN nasce podendo escrever no repositório. Uma CI só precisa ler.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Sem `version:` de propósito — a versão vem do campo `packageManager` do
+      # package.json. Declarar nos dois lugares quebra com ERR_PNPM_BAD_PM_VERSION.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      # A suíte NÃO faz rede, e é por isso que ela pode rodar aqui. A verificação de
+      # integração (scripts/verificacao-fase-0*.ts) fica de fora de propósito: ela precisa
+      # de um Workspace de verdade e de credenciais que não existem no runner.
+      - run: pnpm run test
