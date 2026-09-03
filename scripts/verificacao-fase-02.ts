@@ -33,7 +33,10 @@ import type { MotorPort } from '../apps/server/src/engine/port.js'
 import { descreverPrevia, traduzirPrevia } from '../apps/server/src/preview/preview.js'
 import { runTurn } from '../apps/server/src/run/turn.js'
 import { ToolRegistry } from '../apps/server/src/tools/registry.js'
-import { createPreviewTaskTool } from '../apps/server/src/tools/workspace-create-task.js'
+import {
+  ArmazemDePrevias,
+  createPreviewTaskTool,
+} from '../apps/server/src/tools/workspace-create-task.js'
 
 const BASE = process.env.WORKSPACE_BASE_URL ?? 'http://localhost:4319'
 const CLIENT = process.env.WORKSPACE_AGENT_CLIENT ?? ''
@@ -571,7 +574,7 @@ async function main(): Promise<void> {
       }
       const registry = new ToolRegistry().register(
         'workspace.tasks.create',
-        createPreviewTaskTool(cliente()),
+        createPreviewTaskTool(cliente(), new ArmazemDePrevias()),
       )
       await runTurn({
         motor,

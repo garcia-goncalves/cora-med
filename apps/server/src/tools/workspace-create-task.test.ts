@@ -3,6 +3,7 @@ import { WorkspaceApiError, WorkspaceClient } from '@cora/workspace-client'
 import { describe, expect, it } from 'vitest'
 
 import {
+  ArmazemDePrevias,
   createPreviewTaskTool,
   descreverFalhaDaCriacao,
   executarCriacaoAprovada,
@@ -71,12 +72,16 @@ async function rodarPrevia(
   fetchImpl: typeof fetch,
   args: Record<string, unknown> = { titulo: 'Ligar para a clínica', cliente: { texto: 'Unica CORA' } },
 ) {
-  const tool = createPreviewTaskTool(makeClient(fetchImpl))
-  return (await tool({
+  const armazem = new ArmazemDePrevias()
+  const tool = createPreviewTaskTool(makeClient(fetchImpl), armazem)
+  const resultado = (await tool({
     args,
     requester: REQUESTER,
     signal: new AbortController().signal,
   })) as PreviewTaskToolResult
+  const previa = armazem.recuperar(resultado.previaId)
+  if (previa === undefined) throw new Error('a prévia não foi guardada no armazém')
+  return { resultado, previa, armazem }
 }
 
 describe('a ferramenta de criação NÃO cria — ela faz a prévia e para', () => {
@@ -94,9 +99,45 @@ describe('a ferramenta de criação NÃO cria — ela faz a prévia e para', () 
   })
 
   it('devolve a apresentação pronta quando o Workspace autorizou', async () => {
-    const r = await rodarPrevia(async () => jsonResponse(200, respostaDaPrevia()))
-    expect(r.apresentacao.tipo).toBe('pronta')
-    expect(r.previa.args?.clienteId).toBe('SYNTH-cli-1')
+    const { resultado, previa } = await rodarPrevia(async () =>
+      jsonResponse(200, respostaDaPrevia()),
+    )
+    expect(resultado.tipo).toBe('pronta')
+    // A prévia inteira existe, mas do lado do SERVIDOR — não no que o modelo lê.
+    expect(previa.args?.clienteId).toBe('SYNTH-cli-1')
+  })
+
+  it('⚠️ o resultado que vai ao modelo NÃO carrega o approvalToken', async () => {
+    // Achado de revisão de segurança em 03/09/2026. O resultado da ferramenta vira
+    // mensagem para o modelo em turn.ts; devolver a prévia inteira punha a credencial de
+    // autorização na mesma janela de contexto que o texto hostil vindo do formulário
+    // público. O embrulho continua valendo, mas a defesa não pode depender só dele.
+    const { resultado } = await rodarPrevia(async () => jsonResponse(200, respostaDaPrevia()))
+    const serializado = JSON.stringify(resultado)
+
+    expect(serializado).not.toContain(TOKEN_SINTETICO)
+    expect(serializado).not.toMatch(/approvaltoken|argshash|idempotency/i)
+    // E nem os argumentos executáveis: o modelo não monta a gravação, ele descreve o pedido.
+    expect(Object.keys(resultado).sort()).toEqual([
+      'opcoes',
+      'outcome',
+      'previaId',
+      'texto',
+      'tipo',
+    ])
+  })
+
+  it('o identificador da prévia é opaco e não deriva do conteúdo', async () => {
+    const a = await rodarPrevia(async () => jsonResponse(200, respostaDaPrevia()))
+    const b = await rodarPrevia(async () => jsonResponse(200, respostaDaPrevia()))
+    expect(a.resultado.previaId).not.toBe(b.resultado.previaId)
+    expect(a.resultado.previaId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('id de prévia que não existe não devolve prévia nenhuma', () => {
+    expect(new ArmazemDePrevias().recuperar('SYNTH-id-inventado')).toBeUndefined()
+    // Nome herdado de protótipo também não vira prévia.
+    expect(new ArmazemDePrevias().recuperar('constructor')).toBeUndefined()
   })
 
   it('argumento do modelo fora da forma acordada é recusado antes da rede', async () => {
@@ -272,6 +313,25 @@ describe('executarCriacaoAprovada — as travas antes de a escrita sair', () => 
     if (r.estado === 'desconhecido') {
       expect(r.idempotencyKey).toBe('00000000-0000-4000-8000-00000000beef')
     }
+  })
+
+  it('argumentos adulterados depois de guardados são barrados pelo hash', async () => {
+    // É isto que a trava 2 pega de verdade: a prévia fica guardada no armazém, e o
+    // argsHash foi calculado antes. Mexer em previa.args não muda o hash.
+    let saiu = false
+    const { previa } = await rodarPrevia(async () => jsonResponse(200, respostaDaPrevia()))
+    if (previa.args !== null) previa.args.clienteId = 'SYNTH-cliente-TROCADO'
+
+    const r = await executarCriacaoAprovada({
+      client: makeClient(async () => {
+        saiu = true
+        return jsonResponse(201, {})
+      }),
+      previa,
+      agora: AGORA,
+    })
+    expect(saiu).toBe(false)
+    expect(r.estado).toBe('conflito')
   })
 
   it('409 SOBE como exceção — não é contado como execução bem-sucedida', async () => {

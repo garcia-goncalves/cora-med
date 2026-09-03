@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { PedidoDePrevia } from '@cora/contracts'
 import { PedidoDePreviaSchema } from '@cora/contracts'
 import {
@@ -10,12 +12,66 @@ import {
   descreverPrevia,
   traduzirPrevia,
   verificarAntesDeExecutar,
+  type CandidatoResolvido,
   type PreviaDeCriacao,
-  type ResultadoDaPrevia,
 } from '../preview/preview.js'
 import { novaChaveDeIdempotencia, type ResultadoDeCriacao } from '../run/idempotency.js'
 
 import type { ToolHandler } from './registry.js'
+
+/**
+ * Onde a prévia inteira fica guardada — do lado do servidor, **fora do alcance do modelo**.
+ *
+ * ⚠️ Isto existe por causa de um achado de revisão de segurança em 03/09/2026, e o defeito
+ * merece ficar escrito: a versão anterior devolvia a `PreviaDeCriacao` inteira como
+ * resultado da ferramenta. Esse resultado vira mensagem para o modelo em `turn.ts`, então
+ * o `approvalToken` ia junto — duas vezes, e reenviado a cada passo do turno. O arquivo
+ * `tool-schemas.ts` afirma, com todas as letras, que o modelo **não vê** o token; a
+ * afirmação estava certa sobre a ENTRADA da ferramenta e errada sobre a SAÍDA dela.
+ *
+ * Por que importa, mesmo com o token não bastando sozinho para gravar: o rótulo de cliente
+ * é texto escolhido por um estranho num formulário público. Guardar esse texto e a
+ * credencial de autorização na mesma janela de contexto é juntar a isca e a chave. O
+ * embrulho de dado não confiável continua valendo — mas a defesa não pode depender só dele.
+ *
+ * O modelo passa a receber apenas um **identificador opaco** da prévia. Ele não consegue
+ * copiar para lugar nenhum uma credencial que nunca leu.
+ */
+export class ArmazemDePrevias {
+  private readonly previas = new Map<string, PreviaDeCriacao>()
+
+  guardar(previa: PreviaDeCriacao): string {
+    const id = randomUUID()
+    this.previas.set(id, previa)
+    return id
+  }
+
+  recuperar(id: string): PreviaDeCriacao | undefined {
+    // `Map` não sofre com nome herdado de protótipo, ao contrário de objeto simples.
+    return this.previas.get(id)
+  }
+
+  esquecer(id: string): void {
+    this.previas.delete(id)
+  }
+}
+
+/**
+ * O que a ferramenta devolve, e **é isto que o modelo lê**.
+ *
+ * Repare no que não está aqui: token, argumentos executáveis e hash. O modelo precisa
+ * saber o que dizer à pessoa e como identificar esta prévia depois. Nada além disso.
+ */
+export type PreviewTaskToolResult = {
+  outcome: 'previa'
+  /** Identificador opaco. Só serve para achar a prévia guardada no servidor. */
+  previaId: string
+  tipo: 'pronta' | 'pergunta' | 'recusada'
+  /** O texto em português para a pessoa ler. */
+  texto: string
+  /** As opções, quando falta escolher. Vazio nos outros casos. */
+  opcoes: CandidatoResolvido[]
+}
 
 /**
  * Ferramenta `workspace.tasks.create` — e a coisa mais importante deste arquivo é o que
@@ -34,14 +90,18 @@ import type { ToolHandler } from './registry.js'
  * A política classifica esta ferramenta como `internal_write`, que `decide()` permite sem
  * aprovação. Isso **não** é contradição: aquela permissão é sobre a prévia, que é leitura
  * pura e não escreve nada. Quem autoriza a gravação é a pessoa, aqui.
+ *
+ * ⚠️ **Aviso para quem mexer nisto na Fase 3.** A proteção acima é o nome desta função,
+ * não uma trava da política: `decide()` só exige rito de aprovação para
+ * `external_effect`, e `workspace.tasks.create` é `internal_write`. Se alguém registrar o
+ * executor de GRAVAÇÃO sob este mesmo nome, a política libera sem aprovação e o
+ * `approvalId` do registro de execução nasce `null`. O nome desta ferramenta é a prévia,
+ * e tem de continuar sendo.
  */
-export type PreviewTaskToolResult = {
-  outcome: 'previa'
-  previa: PreviaDeCriacao
-  apresentacao: ResultadoDaPrevia
-}
-
-export function createPreviewTaskTool(client: WorkspaceClient): ToolHandler {
+export function createPreviewTaskTool(
+  client: WorkspaceClient,
+  armazem: ArmazemDePrevias,
+): ToolHandler {
   return async ({ args, signal }) => {
     // Os argumentos vêm do MODELO. Validar aqui não é desconfiança decorativa: o esquema
     // que ele recebeu descreve a forma, mas nada obriga a saída dele a obedecer.
@@ -63,11 +123,14 @@ export function createPreviewTaskTool(client: WorkspaceClient): ToolHandler {
     // prévia tivesse dado certo.
     const resposta = await client.previewTask(pedido, { signal })
     const previa = traduzirPrevia(pedido, resposta)
+    const apresentacao = descreverPrevia(previa)
 
     return {
       outcome: 'previa',
-      previa,
-      apresentacao: descreverPrevia(previa),
+      previaId: armazem.guardar(previa),
+      tipo: apresentacao.tipo,
+      texto: apresentacao.texto,
+      opcoes: apresentacao.tipo === 'pergunta' ? apresentacao.opcoes : [],
     } satisfies PreviewTaskToolResult
   }
 }
@@ -77,8 +140,15 @@ export function createPreviewTaskTool(client: WorkspaceClient): ToolHandler {
  *
  * Ordem das travas, e ela é deliberada:
  * 1. a apresentação tem de ter chegado a `pronta` — pergunta e recusa não viram gravação;
- * 2. `verificarAntesDeExecutar()` confere que o que vamos enviar é o que foi mostrado;
+ * 2. `verificarAntesDeExecutar()` confere validade do token e integridade dos argumentos;
  * 3. só então a requisição sai.
+ *
+ * ⚠️ **Honestidade sobre o alcance da trava 2**, apontada em revisão: os argumentos saem
+ * da própria `previa`, então ela não pega "a Cora montou um pedido diferente" — isso não
+ * é possível por este caminho. O que ela pega é real e é outra coisa: **token vencido**,
+ * **ausência de autorização**, e **`previa.args` adulterado depois de guardado** no
+ * `ArmazemDePrevias`, porque o `argsHash` foi calculado antes e não acompanha a mudança.
+ * Chamá-la de "confere que enviamos o que foi mostrado" era vender mais do que ela faz.
  *
  * A `Idempotency-Key` é gerada **uma vez por tentativa lógica** e devolvida no resultado.
  * Repetir a tentativa reaproveita a MESMA chave — é isso que faz a repetição ser inócua
@@ -232,7 +302,13 @@ export function descreverFalhaDaCriacao(error: unknown): string {
 
 /**
  * O `409 PRECONDITION_CHANGED` traz, campo a campo, o que mudou entre a prévia e o
- * instante de gravar. Cada motivo vira uma frase diferente porque **são coisas
+ * instante de gravar.
+ *
+ * ⚠️ **O texto daqui é para a PESSOA ler, e só para ela.** Ele interpola `rotulo`, que
+ * vem do Workspace e nasce de formulário público. Se algum dia isto for entregue ao
+ * modelo, tem de passar por `wrapUntrusted()`; se for para uma tela HTML, tem de ser
+ * escapado. Não use esta função como fonte de mensagem para o motor.
+ * Cada motivo vira uma frase diferente porque **são coisas
  * diferentes**: "a pessoa saiu da equipe" e "esse cliente não existe mais" pedem reações
  * distintas de quem lê.
  */

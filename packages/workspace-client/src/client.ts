@@ -305,6 +305,14 @@ export class WorkspaceClient {
     try {
       return await this.fetchImpl(req.url, {
         method: req.method,
+        // ⚠️ NUNCA seguir redirecionamento. O `undici` remove `authorization` ao cruzar
+        // origem, mas NÃO remove cabeçalho próprio: `X-Agent-Client` e `X-Agent-Secret`
+        // iriam junto, e num 307/308 o corpo do POST — com o `approvalToken` dentro —
+        // seria reenviado ao destino novo. A metade de serviço da credencial é a que não
+        // expira sozinha: rotacioná-la é emissão nova, não renovação. A API do contrato
+        // não redireciona, então seguir redirecionamento aqui não serve a caso legítimo
+        // nenhum e só abre a porta para um proxy mal configurado na frente do Workspace.
+        redirect: 'error',
         headers: {
           ...this.authHeaders(),
           ...(req.headers ?? {}),
