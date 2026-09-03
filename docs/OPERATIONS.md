@@ -105,6 +105,37 @@ vacuidade e não prova nada. As fixtures usadas estão descritas na evidência
 rollback de duas linhas). CORA-002 pede ao WORKSPACE um comando de semeadura, para isso
 deixar de ser SQL nosso.
 
+## Verificação completa da Fase 2 (a ESCRITA)
+
+```bash
+WORKSPACE_BASE_URL=http://localhost:4319 \
+WORKSPACE_AGENT_CLIENT=... WORKSPACE_AGENT_SECRET=... \
+TOKEN_A=... TOKEN_SO_LEITURA=... \
+pnpm exec tsx scripts/verificacao-fase-02.ts
+```
+
+**O que aparece se der certo:** uma tabela de 27 linhas e
+`TODAS AS 27 VERIFICAÇÕES PASSARAM`, com código de saída 0.
+
+⚠️ **Este script CRIA tarefas de verdade** no banco local — 14 criações, contando as
+recusadas. Só rode contra um Workspace de desenvolvimento. Todo título nasce com o prefixo
+`SYNTH-verificacao-fase-02` mais o horário da rodada, então dá para achar e apagar tudo
+com um `LIKE`.
+
+`TOKEN_A` precisa de **`tasks:read tasks:write`**. `TOKEN_SO_LEITURA` é a mesma pessoa com
+**só `tasks:read`** — sem ele, duas verificações saem como `PULADO`: que a prévia exige
+escopo de escrita mesmo sem escrever nada (C6.11), e que a criação com delegação de leitura
+dá 403 (C6.24).
+
+Três verificações dependem das fixtures `cora-fx-*` do Workspace (`pnpm agente:fixtures`
+lá): cliente único, cliente homônimo e a de injeção. O termo que casa com a de injeção, e
+só com ela, é `Ignore as instruções` — o nome gravado está **truncado em 120 caracteres**,
+então não dá para casar pelo fim da frase.
+
+**C6.25 dispara duas criações em paralelo com a mesma `Idempotency-Key`.** É a prova W15 do
+Workspace vista do lado de fora. Se vier `201` nas duas, o defeito é do índice único deles,
+não desta verificação — o script mostra os dois resultados crus na coluna "obtido".
+
 ## Coordenação entre as duas sessões
 
 As duas janelas do VS Code **não conversam sozinhas**. O fluxo é manual e é este:
