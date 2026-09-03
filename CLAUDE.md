@@ -38,6 +38,6 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 
 ```bash
 pnpm install
-pnpm run test        # 77 testes, sem rede
+pnpm run test        # suíte completa, sem rede (contagem atual no docs/ROADMAP.md)
 pnpm run typecheck
 ```

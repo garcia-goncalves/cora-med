@@ -126,7 +126,7 @@ indicação de **onde** ele mora. As variáveis estão listadas em `docs/OPERATI
 
 ## Testes de segurança que já rodam
 
-`pnpm run test` — 69 testes. Os que são de segurança:
+`pnpm run test` — suíte completa, sem rede. Os testes que são de segurança:
 
 - ferramenta desconhecida negada;
 - ação privilegiada negada;

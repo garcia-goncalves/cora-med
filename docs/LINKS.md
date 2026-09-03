@@ -16,7 +16,7 @@ Quando ele existir, esta seção passa a ter o link da aplicação.
 
 ```bash
 pnpm install
-pnpm run test        # 77 testes, sem rede
+pnpm run test        # suíte completa, sem rede
 pnpm run typecheck   # não escreve nada quando está limpo
 ```
 

@@ -19,7 +19,7 @@ pnpm run test
 pnpm run typecheck
 ```
 
-`pnpm run test` roda 77 testes contra fixtures sintéticas. Nenhum teste faz rede,
+`pnpm run test` roda a suíte contra fixtures sintéticas. Nenhum teste faz rede,
 nenhum usa dado real, nenhum envia e-mail.
 
 A integração real com o Workspace é outro comando, e precisa de um Workspace local no ar

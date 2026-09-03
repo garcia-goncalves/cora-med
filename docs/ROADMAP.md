@@ -23,7 +23,8 @@ não é `feito`.
 - ADR 0001 do motor, com commit avaliado e bloqueadores nomeados.
 - Estrutura de coordenação criada; CORA-001 aberto em `proposed`.
 - Fundação de código: contratos, cliente, política, laço de execução.
-- 69 testes locais passando (`pnpm run test`), com fixtures `SYNTH-`.
+- Suíte local passando (`pnpm run test`), com fixtures `SYNTH-`. Eram 69 testes ao
+  fechar esta fase; a contagem atual está na Fase 2.
 - `pnpm run typecheck` limpo.
 - Script de integração existe e **recusa rodar** sem contrato fixado (verificado:
   código de saída 1).
@@ -70,7 +71,15 @@ antes de saber a forma de idempotência que quero.
 - **`tool-schemas.ts`** — só oferece ao modelo ferramenta que tem executor **e** esquema de
   argumento. `workspace.tasks.create` fica de fora de propósito: o contrato de escrita não
   chegou.
-- Suíte em **103 testes**, `typecheck` limpo.
+- **Camada de prévia e idempotência** — tipos internos e **provisórios** até o CORA-003
+  responder. Travado por teste: ambiguidade vira pergunta e nunca prévia pronta; token
+  vindo junto com ambiguidade é recusado; prazo ausente aparece como ausente e a palavra
+  "hoje" não surge; argumento diferente do aprovado é barrado antes de sair da máquina;
+  e a chave de idempotência é UUID v4 que **não** deriva do conteúdo.
+- Duas revisões especialistas acharam **dois bloqueantes**, ambos corrigidos com teste:
+  o histórico de um turno vazando para o seguinte, e amplificação de custo por título de
+  tarefa sem tamanho máximo no contrato.
+- Suíte em **140 testes**, `typecheck` limpo, `pnpm audit` limpo.
 
 **Bloqueado por terceiro:** o endpoint de escrita depende da resposta do **CORA-003**, que
 segue `proposed`. Nada de escrita é implementado antes dela.
