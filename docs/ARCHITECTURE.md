@@ -71,6 +71,20 @@ com `contractVersion` diferente é recusada.
 `wrapUntrusted()`. Mas a defesa que segura é estrutural: catálogo fechado e aprovação por
 hash. O bloco de texto é a camada de cima, não a única.
 
+O motor **exige** a marca em vez de confiar em quem chamou: resultado de ferramenta sem
+bloco não confiável é erro alto, não conteúdo aceito.
+
+**Conteúdo externo tem teto de tamanho.** `MAX_CHARS_RESULTADO` (8 mil caracteres) corta
+cada resultado **antes** de embrulhar — cortar depois decepa o marcador de fechamento e o
+bloco vaza. Existe por custo real: o contrato não limita o título da tarefa, o histórico é
+reenviado a cada um dos dez passos do turno, e quem consegue criar uma tarefa para a Thaís
+transformaria cada pergunta dela em dólares. O corte é visível, com a contagem do que ficou
+de fora.
+
+**Uma instância de motor serve um turno.** `AnthropicMotor` se amarra ao `runId` do
+primeiro passo e recusa outro. Sem isso, um motor único por processo — o jeito natural de
+injetar dependência — levaria o histórico de uma pessoa para dentro da resposta a outra.
+
 **Tetos são da aplicação.** 10 chamadas de modelo e 120 segundos por padrão, aplicados em
 `runTurn`. Alerta de provedor não é corte.
 

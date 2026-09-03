@@ -35,7 +35,10 @@ const TABELA: Readonly<Record<string, PrecoModelo>> = {
 }
 
 export function precoDe(model: string): PrecoModelo | null {
-  return TABELA[model] ?? null
+  // `Object.hasOwn`, não indexação direta: um nome como `constructor` ou `toString` vem
+  // da cadeia de protótipos, passa como valor verdadeiro e produz NaN com data de
+  // verificação preenchida — exatamente a mentira que este arquivo existe para impedir.
+  return Object.hasOwn(TABELA, model) ? TABELA[model]! : null
 }
 
 /** Tokens gastos num passo, como o provedor os reporta. */

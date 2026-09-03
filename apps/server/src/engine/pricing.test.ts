@@ -70,6 +70,17 @@ describe('preço de modelo', () => {
     expect(precoDe('claude-haiku-4-5')?.saida).toBe(5)
   })
 
+  it('nome herdado do protótipo não é preço', () => {
+    // `TABELA['constructor']` devolveria um valor verdadeiro pela cadeia de protótipos,
+    // e o custo sairia NaN COM data de verificação preenchida — a mentira exata que
+    // este módulo existe para impedir.
+    for (const nome of ['constructor', 'toString', 'valueOf', '__proto__', 'hasOwnProperty']) {
+      expect(precoDe(nome), nome).toBeNull()
+      const custo = calcularCusto(nome, { entrada: 100, saida: 100, leituraCache: 0, escritaCache: 0 })
+      expect(custo.custoUsd, nome).toBeNull()
+    }
+  })
+
   it('a tabela de preço ainda está dentro da validade declarada', () => {
     // Este teste NÃO adivinha preço novo. Ele obriga alguém a ir conferir a página
     // oficial quando a tabela envelhece — porque preço velho afirmado com confiança é

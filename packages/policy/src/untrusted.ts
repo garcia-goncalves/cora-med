@@ -34,6 +34,36 @@ export function wrapUntrusted(block: UntrustedBlock): string {
   ].join('\n')
 }
 
+/**
+ * Verdadeiro se o texto tem a forma de um bloco de dado não confiável.
+ *
+ * Serve para quem CONSOME conteúdo externo poder exigir a marca em vez de confiar que
+ * quem chamou lembrou de embrulhar. Um esquecimento assim injeta texto de terceiro no
+ * mesmo nível das instruções, e não deixa rastro nenhum.
+ */
+export function estaEmbrulhado(texto: string): boolean {
+  return texto.includes(OPEN) && texto.includes(CLOSE)
+}
+
+/**
+ * Corta conteúdo externo ANTES de embrulhar, com marca visível do que foi omitido.
+ *
+ * Existe por causa de um custo real: um título de tarefa não tem tamanho máximo no
+ * contrato, o histórico inteiro é reenviado a cada passo do turno, e há até dez passos.
+ * Quem consegue criar uma tarefa atribuída à Thaís consegue, com um título de algumas
+ * centenas de milhares de caracteres, transformar cada pergunta dela em dólares — e,
+ * passando do contexto do modelo, em assistente que simplesmente para de responder.
+ *
+ * O corte é ANTES do embrulho de propósito: cortar o texto já embrulhado decepa o
+ * marcador de fechamento, e aí o bloco vaza.
+ */
+export function cortarParaLimite(conteudo: string, limite: number): string {
+  if (conteudo.length <= limite) return conteudo
+  const omitidos = conteudo.length - limite
+  return `${conteudo.slice(0, limite)}
+[... truncado, ${omitidos} caracteres omitidos]`
+}
+
 /** Verdadeiro se o conteúdo conseguiu escapar do bloco. Usado em teste de regressão. */
 export function escapesBlock(wrapped: string): boolean {
   // Um bloco íntegro tem exatamente uma abertura e um fechamento.

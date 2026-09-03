@@ -1,4 +1,4 @@
-import { findTool } from '@cora/policy'
+import { findTool, isOutOfScope } from '@cora/policy'
 
 /**
  * A forma dos argumentos de cada ferramenta, no formato que a API de modelo entende.
@@ -63,7 +63,8 @@ export function nomesComEsquema(): string[] {
 }
 
 export function esquemaDe(name: string): EsquemaFerramenta | undefined {
-  return ESQUEMAS[name]
+  // `Object.hasOwn` pelo mesmo motivo de `pricing.ts`: `constructor` não é esquema.
+  return Object.hasOwn(ESQUEMAS, name) ? ESQUEMAS[name] : undefined
 }
 
 /**
@@ -79,7 +80,17 @@ export function montarFerramentas(nomes: readonly string[]): FerramentaParaMotor
     if (!spec) {
       throw new Error(`Ferramenta "${name}" não existe no catálogo da política`)
     }
-    const input_schema = ESQUEMAS[name]
+    if (isOutOfScope(spec.category)) {
+      // Defesa em profundidade: `decide()` já negaria na execução, mas nem OFERECER
+      // ferramenta privilegiada ao modelo é melhor do que oferecer e negar depois.
+      // Hoje o que impede `system.install` de aparecer é ninguém ter escrito um esquema
+      // para ela — o que é acidente, não trava.
+      throw new Error(
+        `Ferramenta "${name}" é de categoria fora do escopo da assistente e não pode ` +
+          'sequer ser oferecida ao modelo.',
+      )
+    }
+    const input_schema = esquemaDe(name)
     if (!input_schema) {
       throw new Error(
         `Ferramenta "${name}" não tem esquema de argumentos em tool-schemas.ts. ` +

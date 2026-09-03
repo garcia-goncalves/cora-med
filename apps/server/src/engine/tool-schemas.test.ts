@@ -37,4 +37,17 @@ describe('esquemas de ferramenta oferecidos ao motor', () => {
     expect(esquema?.additionalProperties).toBe(false)
     expect(esquema?.required).toEqual([])
   })
+
+  it('nome herdado do protótipo não é esquema', () => {
+    for (const nome of ['constructor', 'toString', '__proto__']) {
+      expect(esquemaDe(nome), nome).toBeUndefined()
+    }
+  })
+
+  it('recusa oferecer ferramenta de categoria fora do escopo', () => {
+    // `decide()` já negaria na execução. Mas nem OFERECER é melhor: hoje o que impede
+    // `system.install` de aparecer para o modelo é ninguém ter escrito um esquema para
+    // ela, o que é acidente e não trava.
+    expect(() => montarFerramentas(['system.install'])).toThrow(/fora do escopo/)
+  })
 })

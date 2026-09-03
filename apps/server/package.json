@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.123.0",
+    "@anthropic-ai/sdk": "0.123.0",
     "@cora/contracts": "workspace:*",
     "@cora/policy": "workspace:*",
     "@cora/workspace-client": "workspace:*"
