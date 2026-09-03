@@ -41,13 +41,23 @@ saída de modelo vire efeito sem passar por `decide()`.
 | `packages/contracts` | schemas Zod do contrato do Workspace + tipos internos | implementado |
 | `packages/workspace-client` | HTTP, erros tipados, paginação com detecção de duplicata e de laço, timeout | implementado |
 | `packages/policy` | catálogo fechado de ferramentas, categorias de risco, hash de aprovação, bloco de dado não confiável | implementado |
-| `apps/server` | `MotorPort`, registro de ferramentas, laço `runTurn` | implementado |
+| `apps/server` | `MotorPort`, `AnthropicMotor`, registro de ferramentas, laço `runTurn` | implementado |
 | `apps/desktop` | aplicativo Windows (Electron) | **não existe** |
 
 ## Decisões que já valem
 
 **Motor.** ADR 0001: Hermes **não** embutido. Orquestrador próprio atrás de `MotorPort`.
 `HermesMotorAdapter` existe e falha de propósito.
+
+**Provedor de modelo.** ADR 0002: API da Anthropic, modelo `claude-opus-5`, raciocínio
+adaptativo, esforço `medium`. O cliente entra por injeção em `AnthropicMotor`, e é por isso
+que a suíte continua sem rede. O custo por passo é calculado com preço **verificado e
+datado** em `pricing.ts`; modelo fora da tabela produz custo `null`, nunca zero.
+
+**Esquema de ferramenta é fronteira do motor.** `tool-schemas.ts` descreve os argumentos
+de cada ferramenta oferecida ao modelo, e só cobre o que tem executor hoje. Ferramenta do
+catálogo sem esquema **não é oferecida**, e o adaptador falha alto em vez de deixar o
+modelo inventar argumento.
 
 **Contrato fixado, não seguido às cegas.** `CONTRACT_VERSION` e `CONTRACT_SHA256` vivem
 no código da Cora. Enquanto o SHA for `null`, o script de integração recusa rodar. Resposta
@@ -60,6 +70,20 @@ com `contractVersion` diferente é recusada.
 **Conteúdo externo é dado.** Título de tarefa, e-mail e documento passam por
 `wrapUntrusted()`. Mas a defesa que segura é estrutural: catálogo fechado e aprovação por
 hash. O bloco de texto é a camada de cima, não a única.
+
+O motor **exige** a marca em vez de confiar em quem chamou: resultado de ferramenta sem
+bloco não confiável é erro alto, não conteúdo aceito.
+
+**Conteúdo externo tem teto de tamanho.** `MAX_CHARS_RESULTADO` (8 mil caracteres) corta
+cada resultado **antes** de embrulhar — cortar depois decepa o marcador de fechamento e o
+bloco vaza. Existe por custo real: o contrato não limita o título da tarefa, o histórico é
+reenviado a cada um dos dez passos do turno, e quem consegue criar uma tarefa para a Thaís
+transformaria cada pergunta dela em dólares. O corte é visível, com a contagem do que ficou
+de fora.
+
+**Uma instância de motor serve um turno.** `AnthropicMotor` se amarra ao `runId` do
+primeiro passo e recusa outro. Sem isso, um motor único por processo — o jeito natural de
+injetar dependência — levaria o histórico de uma pessoa para dentro da resposta a outra.
 
 **Tetos são da aplicação.** 10 chamadas de modelo e 120 segundos por padrão, aplicados em
 `runTurn`. Alerta de provedor não é corte.

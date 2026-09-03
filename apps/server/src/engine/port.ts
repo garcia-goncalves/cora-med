@@ -11,7 +11,12 @@ import type { RequesterContext, ToolCallProposal } from '@cora/contracts'
  * - o motor PROPÕE chamadas de ferramenta; quem executa é o servidor da Cora;
  * - o motor recebe `RequesterContext` já verificado e não pode alterá-lo;
  * - `AbortSignal` é obrigatório: toda execução é cancelável;
- * - `maxModelCalls` é aplicado pelo chamador, não pela boa vontade do motor.
+ * - `maxModelCalls` é aplicado pelo chamador, não pela boa vontade do motor;
+ * - **uma instância serve UM turno.** Implementação com estado — e um motor de conversa
+ *   costuma ter — guardaria o histórico de um turno e o levaria para o seguinte, o que
+ *   num sistema de clínica é a conversa de uma pessoa aparecendo na resposta a outra.
+ *   Quem implementa com estado deve recusar `runId` diferente daquele a que se amarrou,
+ *   em vez de confiar em quem injeta a dependência.
  */
 export interface MotorPort {
   readonly name: string

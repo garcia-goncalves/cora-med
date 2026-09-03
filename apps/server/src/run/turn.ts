@@ -1,7 +1,14 @@
 import { createHmac, randomBytes } from 'node:crypto'
 
 import type { Approval, ExecutionRecord, RequesterContext } from '@cora/contracts'
-import { decide, findTool, hashArgs, requiresApproval, wrapUntrusted } from '@cora/policy'
+import {
+  cortarParaLimite,
+  decide,
+  findTool,
+  hashArgs,
+  requiresApproval,
+  wrapUntrusted,
+} from '@cora/policy'
 
 import type { MotorMessage, MotorPort } from '../engine/port.js'
 import type { ToolRegistry } from '../tools/registry.js'
@@ -186,12 +193,24 @@ export async function runTurn(args: RunTurnArgs): Promise<TurnOutcome> {
  * instruções da Cora, e quem consegue criar uma tarefa consegue escrever no prompt dela.
  * A mensagem de erro também: ela é texto controlado pelo outro lado.
  */
+/**
+ * Teto de tamanho de UM resultado de ferramenta, em caracteres.
+ *
+ * O contrato do Workspace não põe máximo no título da tarefa, e a listagem traz até cem.
+ * Sem teto, quem consegue criar uma tarefa para a Thaís consegue encher o histórico — que
+ * é reenviado inteiro a cada um dos dez passos do turno — e transformar cada pergunta
+ * dela em conta de dólares, ou em requisição que estoura o contexto e não responde mais.
+ */
+export const MAX_CHARS_RESULTADO = 8000
+
 function toolResultMessage(toolName: string, payload: unknown): MotorMessage {
   return {
     role: 'tool_result',
+    // O corte vem ANTES do embrulho: cortar depois decepa o marcador de fechamento e o
+    // bloco vaza. E o corte é visível, nunca silencioso.
     content: wrapUntrusted({
       source: `tool:${toolName}`,
-      content: JSON.stringify(payload),
+      content: cortarParaLimite(JSON.stringify(payload), MAX_CHARS_RESULTADO),
     }),
   }
 }

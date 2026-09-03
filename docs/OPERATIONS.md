@@ -36,6 +36,10 @@ WORKSPACE_AGENT_SECRET=
 # Formato exato definido pelo contrato workspace-agent-v1 (ticket CORA-001).
 WORKSPACE_DELEGATION_TOKEN=
 
+# Chave da API do provedor de modelo (ADR 0002). Sem ela não há conversa; a consulta
+# de tarefas da Fase 1 continua funcionando. É SEGREDO: nunca versionar o valor.
+ANTHROPIC_API_KEY=
+
 # Timeout de rede em milissegundos.
 WORKSPACE_TIMEOUT_MS=10000
 
