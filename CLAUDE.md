@@ -26,6 +26,7 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 | Precisa de | Vá para |
 |---|---|
 | Por que o motor é este | `docs/decisions/0001-agent-runtime.md` |
+| Qual IA usamos, preço e por quê | `docs/decisions/0002-provedor-de-modelo.md` (produção, Anthropic) e `docs/decisions/0003-motor-de-teste-gemini.md` (teste gratuito, temporário) |
 | Desenho do sistema | `docs/ARCHITECTURE.md` |
 | Fases e o que já existe | `docs/ROADMAP.md` |
 | Autenticação, delegação, aprovação | `docs/SECURITY.md` |
