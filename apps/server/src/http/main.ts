@@ -12,6 +12,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { WorkspaceClient } from '@cora/workspace-client'
 
 import { criarMotorPorTurno } from '../engine/anthropic-adapter.js'
+import { criarClienteGeminiHttp, criarMotorGeminiPorTurno } from '../engine/gemini-adapter.js'
+import type { MotorPort } from '../engine/port.js'
 import { ArmazemDePrevias } from '../tools/workspace-create-task.js'
 import { montarRegistry, porta } from './boot.js'
 import { criarServidorHttp } from './server.js'
@@ -25,12 +27,37 @@ function exigir(nome: string): string {
   return valor
 }
 
+/**
+ * Qual motor o processo usa. Padrão `anthropic` — silêncio nunca muda o motor de
+ * produção. `gemini` é a decisão TEMPORÁRIA da ADR 0003, para testar sem gastar dinheiro.
+ */
+function escolherCriadorDeMotor(): () => MotorPort {
+  const provider = (process.env.MOTOR_PROVIDER ?? 'anthropic').trim().toLowerCase()
+
+  if (provider === 'gemini') {
+    const geminiApiKey = exigir('GEMINI_API_KEY')
+    return criarMotorGeminiPorTurno({ api: criarClienteGeminiHttp({ apiKey: geminiApiKey }) })
+  }
+
+  if (provider !== 'anthropic') {
+    console.error(
+      `MOTOR_PROVIDER="${provider}" não existe. Use "anthropic" (padrão) ou "gemini" ` +
+        '(ADR 0003, motor de teste). Veja docs/OPERATIONS.md.',
+    )
+    process.exit(2)
+  }
+
+  const anthropicApiKey = exigir('ANTHROPIC_API_KEY')
+  const anthropic = new Anthropic({ apiKey: anthropicApiKey })
+  return criarMotorPorTurno({ messages: anthropic.messages })
+}
+
 function main(): void {
   const workspaceBaseUrl = exigir('WORKSPACE_BASE_URL')
   const serviceClientId = exigir('WORKSPACE_AGENT_CLIENT')
   const serviceSecret = exigir('WORKSPACE_AGENT_SECRET')
   const delegationToken = exigir('WORKSPACE_DELEGATION_TOKEN')
-  const anthropicApiKey = exigir('ANTHROPIC_API_KEY')
+  const criarMotor = escolherCriadorDeMotor()
 
   let portaEscolhida: number
   try {
@@ -47,8 +74,6 @@ function main(): void {
     delegationToken,
   })
   const registry = montarRegistry(client, new ArmazemDePrevias())
-  const anthropic = new Anthropic({ apiKey: anthropicApiKey })
-  const criarMotor = criarMotorPorTurno({ messages: anthropic.messages })
 
   const server = criarServidorHttp({ registry, criarMotor })
 

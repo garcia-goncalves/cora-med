@@ -182,7 +182,18 @@ esperando ainda, então ficaram de fora de propósito
 (`docs/esteira/fase-2b-servidor-conversa/spec.md`).
 
 **Orçamento de custo** também saiu pela metade: o preço é real e datado, e o cálculo por
-passo existe. O que não existe é medição de uso real, porque nenhuma chamada foi feita.
+passo existe. O que não existe é medição de uso real com a Anthropic, porque nenhuma
+chamada com chave de produção foi feita.
+
+**Motor de teste (Gemini) — 04/09/2026.** Antes de gastar dinheiro na Anthropic, a Fase 2
+ganhou um segundo `MotorPort`: `GeminiMotor` (`apps/server/src/engine/gemini-adapter.ts`),
+sobre o nível **gratuito** do Google AI Studio. Decisão temporária e reversível — ver
+`docs/decisions/0003-motor-de-teste-gemini.md`. Diferente do motor Anthropic, este **teve
+chamada real, verificada nesta sessão**: `gemini-3.8-flash` (o modelo mais novo) devolveu
+`503` (sobrecarga) três vezes seguidas; `gemini-2.5-flash` devolveu `404` (aposentado para
+conta nova); `gemini-3.6-flash` respondeu de verdade, e é o modelo padrão do adaptador.
+28 testes novos, sem rede, mesma disciplina do motor Anthropic. Custo observado: **zero**
+— nível gratuito, sem faturamento habilitado no projeto do Google.
 
 ## Controles que acompanham toda fase, não a fase 7
 

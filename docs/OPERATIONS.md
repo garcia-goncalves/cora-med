@@ -34,6 +34,21 @@ ANTHROPIC_API_KEY=<chave da Anthropic> \
 pnpm --filter @cora/server run dev
 ```
 
+**Motor de teste (Gemini gratuito) — ver `docs/decisions/0003-motor-de-teste-gemini.md`.**
+Enquanto a Anthropic não está ligada com chave paga, `MOTOR_PROVIDER=gemini` troca o
+motor sem tocar em código. Custo zero — nível gratuito do Google AI Studio, sem cartão.
+
+```bash
+cd C:\Users\Desktop\source\repos\cora-med
+WORKSPACE_BASE_URL=http://localhost:4319 \
+WORKSPACE_AGENT_CLIENT=<emitido pelo Workspace> \
+WORKSPACE_AGENT_SECRET=<emitido pelo Workspace> \
+WORKSPACE_DELEGATION_TOKEN=<token de delegação> \
+MOTOR_PROVIDER=gemini \
+GEMINI_API_KEY=<chave do Google AI Studio> \
+pnpm --filter @cora/server run dev
+```
+
 **O que aparece se der certo:**
 ```
 Cora escutando em http://127.0.0.1:4320 — GET /health, POST /turno
@@ -50,9 +65,12 @@ curl -s -X POST http://127.0.0.1:4320/turno \
 
 **Se der errado:**
 - Falta qualquer variável (`WORKSPACE_BASE_URL`, `WORKSPACE_AGENT_CLIENT`,
-  `WORKSPACE_AGENT_SECRET`, `WORKSPACE_DELEGATION_TOKEN`, `ANTHROPIC_API_KEY`): o processo
-  imprime `Falta a variável <NOME>. Veja a lista completa em docs/OPERATIONS.md.` e sai
-  com código `2` — nenhum valor aparece impresso. Confirmado rodando sem nenhuma variável.
+  `WORKSPACE_AGENT_SECRET`, `WORKSPACE_DELEGATION_TOKEN`, e `ANTHROPIC_API_KEY` ou
+  `GEMINI_API_KEY` conforme `MOTOR_PROVIDER`): o processo imprime
+  `Falta a variável <NOME>. Veja a lista completa em docs/OPERATIONS.md.` e sai com
+  código `2` — nenhum valor aparece impresso. Confirmado rodando sem nenhuma variável.
+- `MOTOR_PROVIDER` com valor que não é `anthropic` nem `gemini`: mesma saída, código `2`,
+  nomeando os dois valores aceitos.
 - Corpo malformado ou sem `requester`: `400`/`422`/`413`/`415` com corpo
   `{"erro":{"categoria":"...", "mensagem":"..."}}` — nunca com stack.
 - Motor ou Workspace falharam: `502`, mesmo formato de corpo; o motivo real vai só para o
@@ -65,8 +83,12 @@ curl -s -X POST http://127.0.0.1:4320/turno \
 
 ⚠️ **A conversa real com a Anthropic não foi comprovada nesta entrega.** O servidor foi
 testado de ponta a ponta com `ScriptedMotor` (sem rede) e subiu de verdade com uma chave
-sintética — o que prova é o encaixe HTTP ↔ `runTurn`. Nenhuma chamada real ao provedor foi
+sintética — o que prova é o encaixe HTTP ↔ `runTurn`. Nenhuma chamada real à Anthropic foi
 feita; isso continua em aberto no `docs/ROADMAP.md`.
+
+**A chamada real ao Gemini (motor de teste, ADR 0003) foi feita e provada em 04/09/2026**
+— fora do servidor HTTP, direto no adaptador (`GeminiMotor`), com a chave criada nessa
+sessão. Prova completa em `docs/decisions/0003-motor-de-teste-gemini.md`.
 
 ## Variáveis de ambiente
 
@@ -95,6 +117,14 @@ WORKSPACE_DELEGATION_TOKEN=
 # Chave da API do provedor de modelo (ADR 0002). Sem ela não há conversa; a consulta
 # de tarefas da Fase 1 continua funcionando. É SEGREDO: nunca versionar o valor.
 ANTHROPIC_API_KEY=
+
+# Qual motor o processo usa: "anthropic" (padrão, produção) ou "gemini" (ADR 0003, motor
+# de teste gratuito, TEMPORÁRIO). Omitir equivale a "anthropic".
+MOTOR_PROVIDER=
+
+# Chave do Google AI Studio, só lida quando MOTOR_PROVIDER=gemini (ADR 0003). Nível
+# gratuito, sem faturamento — mesmo assim é SEGREDO: nunca versionar o valor.
+GEMINI_API_KEY=
 
 # Só para os scripts de verificação (scripts/verificacao-fase-0*.ts). A aplicação NÃO
 # lê estes: ela usa WORKSPACE_DELEGATION_TOKEN. TOKEN_A precisa de "tasks:read

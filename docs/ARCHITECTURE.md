@@ -43,7 +43,7 @@ saída de modelo vire efeito sem passar por `decide()`.
 | `packages/contracts` | schemas Zod do contrato do Workspace + tipos internos | implementado |
 | `packages/workspace-client` | HTTP, erros tipados, paginação com detecção de duplicata e de laço, timeout | implementado |
 | `packages/policy` | catálogo fechado de ferramentas, categorias de risco, hash de aprovação, bloco de dado não confiável | implementado |
-| `apps/server` | `MotorPort`, `AnthropicMotor`, registro de ferramentas, laço `runTurn`, servidor HTTP (`GET /health`, `POST /turno`) | implementado e testado sem rede; a chamada real ao provedor continua não exercida |
+| `apps/server` | `MotorPort`, `AnthropicMotor` + `GeminiMotor` (ADR 0003, teste), registro de ferramentas, laço `runTurn`, servidor HTTP (`GET /health`, `POST /turno`) | implementado e testado sem rede; chamada real exercida no `GeminiMotor`, ainda não no `AnthropicMotor` |
 | `apps/desktop` | aplicativo Windows (Electron) | **não existe** |
 
 ## Decisões que já valem
@@ -55,6 +55,15 @@ saída de modelo vire efeito sem passar por `decide()`.
 adaptativo, esforço `medium`. O cliente entra por injeção em `AnthropicMotor`, e é por isso
 que a suíte continua sem rede. O custo por passo é calculado com preço **verificado e
 datado** em `pricing.ts`; modelo fora da tabela produz custo `null`, nunca zero.
+
+**Motor de teste, temporário.** ADR 0003: `GeminiMotor`, sobre o nível gratuito do Google
+AI Studio (modelo `gemini-3.6-flash`, escolhido por chamada real, não por documentação —
+os dois "melhores" candidatos falharam: `3.8-flash` sobrecarregado, `2.5-flash`
+aposentado). Escolhido por `MOTOR_PROVIDER=gemini` em vez de `AnthropicMotor`, sem tocar
+`runTurn` nem política. Custo real: zero, sem faturamento habilitado no projeto do Google.
+Tem uma degradação de esquema conhecida e testada: a API do Gemini não suporta `oneOf`,
+então a regra "informe `id` OU `texto`, nunca os dois" sai do esquema JSON e vira só
+instrução em texto — quem valida de verdade continua sendo o servidor.
 
 **Esquema de ferramenta é fronteira do motor.** `tool-schemas.ts` descreve os argumentos
 de cada ferramenta oferecida ao modelo, e só cobre o que tem executor hoje. Ferramenta do

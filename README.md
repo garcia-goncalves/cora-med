@@ -7,8 +7,9 @@ executar ações autorizadas no Workspace.
 **Estado hoje (04/09/2026): Fases 0, 1 e 2 concluídas e comprovadas contra o Workspace
 real.** A Fase 2b está pela metade: existe um servidor HTTP (`apps/server/src/http`,
 `GET /health` e `POST /turno`) que expõe o motor de conversa, testado sem rede e subido
-de verdade — mas nenhuma chamada real à Anthropic foi feita ainda. Ver `docs/ROADMAP.md`
-para o que é verdade e o que ainda não é.
+de verdade — mas nenhuma chamada real à Anthropic foi feita ainda. Enquanto isso, um
+segundo motor de TESTE (`GeminiMotor`, nível gratuito, custo zero — ADR 0003) já teve
+chamada real comprovada. Ver `docs/ROADMAP.md` para o que é verdade e o que ainda não é.
 
 ## Como rodar
 
