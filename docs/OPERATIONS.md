@@ -87,8 +87,11 @@ sintética — o que prova é o encaixe HTTP ↔ `runTurn`. Nenhuma chamada real
 feita; isso continua em aberto no `docs/ROADMAP.md`.
 
 **A chamada real ao Gemini (motor de teste, ADR 0003) foi feita e provada em 04/09/2026**
-— fora do servidor HTTP, direto no adaptador (`GeminiMotor`), com a chave criada nessa
-sessão. Prova completa em `docs/decisions/0003-motor-de-teste-gemini.md`.
+— primeiro direto no adaptador (`GeminiMotor`), depois **através do servidor HTTP de
+verdade**: `POST /turno` respondeu `200` em 1m34s, com tarefas reais buscadas no Workspace
+local (`CORA-004`, ticket `done`). Prova completa em
+`docs/decisions/0003-motor-de-teste-gemini.md` e
+`med-coordination/evidence/cora/2026-09-04-primeiro-turno-real.md`.
 
 ## Variáveis de ambiente
 

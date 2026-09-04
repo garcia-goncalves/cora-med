@@ -21,8 +21,9 @@ pnpm --filter @cora/server run dev
 - Passo a passo completo, exemplos de `curl` e o que aparece se der errado:
   `docs/OPERATIONS.md`.
 
-⚠️ Nenhuma conversa real com a Anthropic foi feita ainda — só testada com motor de
-mentira e com uma chave sintética. Ver `docs/ROADMAP.md`, Fase 2b.
+✅ O primeiro `POST /turno` real aconteceu em 04/09/2026 — motor Gemini (ADR 0003), `200`
+em 1m34s, tarefas reais do Workspace. ⚠️ Nenhuma conversa real com a **Anthropic** foi
+feita ainda. Ver `docs/ROADMAP.md`, Fase 2b.
 
 ## O que dá para rodar
 
