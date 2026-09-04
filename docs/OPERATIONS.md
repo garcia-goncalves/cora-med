@@ -11,11 +11,62 @@ pnpm run test
 pnpm run typecheck
 ```
 
-**O que aparece se der certo:** `Test Files 3 passed (3)` e `Tests 77 passed (77)`.
+**O que aparece se der certo:** `Test Files 16 passed (16)` e `Tests 282 passed (282)`.
 O typecheck não imprime nada quando passa — silêncio é sucesso.
 
 **Se der errado:** `ERR_PNPM_...` normalmente é falta de rede na hora do install; rode
 `pnpm install` de novo. Erro de tipo aponta arquivo e linha; o build não é ignorável.
+
+## Servidor HTTP da Cora
+
+Expõe o motor de conversa (`AnthropicMotor` + `runTurn` + `ToolRegistry`) em dois
+endpoints: `GET /health` e `POST /turno`. Sem framework — Node `http` nativo (ver
+`docs/ARCHITECTURE.md`). Escuta só em `127.0.0.1`, de propósito: ainda não existe
+autenticação de usuário humano, então não aceita conexão de fora da máquina.
+
+```bash
+cd C:\Users\Desktop\source\repos\cora-med
+WORKSPACE_BASE_URL=http://localhost:4319 \
+WORKSPACE_AGENT_CLIENT=<emitido pelo Workspace> \
+WORKSPACE_AGENT_SECRET=<emitido pelo Workspace> \
+WORKSPACE_DELEGATION_TOKEN=<token de delegação> \
+ANTHROPIC_API_KEY=<chave da Anthropic> \
+pnpm --filter @cora/server run dev
+```
+
+**O que aparece se der certo:**
+```
+Cora escutando em http://127.0.0.1:4320 — GET /health, POST /turno
+```
+
+```bash
+curl -s http://127.0.0.1:4320/health
+# {"status":"ok","contrato":"0.2.1"}
+
+curl -s -X POST http://127.0.0.1:4320/turno \
+  -H 'Content-Type: application/json' \
+  -d '{"requester":{"requesterUserId":"...","deviceId":null},"mensagem":"..."}'
+```
+
+**Se der errado:**
+- Falta qualquer variável (`WORKSPACE_BASE_URL`, `WORKSPACE_AGENT_CLIENT`,
+  `WORKSPACE_AGENT_SECRET`, `WORKSPACE_DELEGATION_TOKEN`, `ANTHROPIC_API_KEY`): o processo
+  imprime `Falta a variável <NOME>. Veja a lista completa em docs/OPERATIONS.md.` e sai
+  com código `2` — nenhum valor aparece impresso. Confirmado rodando sem nenhuma variável.
+- Corpo malformado ou sem `requester`: `400`/`422`/`413`/`415` com corpo
+  `{"erro":{"categoria":"...", "mensagem":"..."}}` — nunca com stack.
+- Motor ou Workspace falharam: `502`, mesmo formato de corpo; o motivo real vai só para o
+  log do processo, nunca para a resposta HTTP.
+- Falha interna inesperada: `500` com corpo genérico fixo — também nunca com stack.
+- Cabeçalho `Host` que não bate com este servidor (defesa contra DNS rebinding): `400`
+  `host_nao_permitido`.
+
+**Porta**: `CORA_PORT`, padrão `4320`. **4319 é o Workspace — não confundir os dois.**
+
+⚠️ **A conversa real com a Anthropic não foi comprovada nesta entrega.** O servidor foi
+testado de ponta a ponta com `ScriptedMotor` (sem rede) e subiu de verdade com uma chave
+sintética — o que prova é o encaixe HTTP ↔ `runTurn`. Nenhuma chamada real ao provedor foi
+feita; isso continua em aberto no `docs/ROADMAP.md`.
 
 ## Variáveis de ambiente
 
@@ -53,6 +104,10 @@ TOKEN_SO_LEITURA=
 
 # Timeout de rede em milissegundos.
 WORKSPACE_TIMEOUT_MS=10000
+
+# Porta em que o servidor HTTP da Cora escuta. Padrão 4320 se omitida — 4319 é o
+# Workspace, não confundir os dois processos.
+CORA_PORT=4320
 
 # Tetos de execução, aplicados pela própria aplicação.
 CORA_MAX_MODEL_CALLS=10
@@ -179,6 +234,10 @@ laço: sem resposta, o estado vira `blocked` e a sessão devolve o próximo pass
 
 ## Ainda não existe
 
-Servidor HTTP da Cora, banco de dados, publicação, Docker, CI. Nada disso foi criado, e
-nada foi publicado em lugar nenhum. VPS, DNS e implantação seguem no roteiro (Fase 7),
-sem nenhuma ação tomada.
+Banco de dados, publicação, Docker, CI. Nada disso foi criado, e nada foi publicado em
+lugar nenhum. VPS, DNS e implantação seguem no roteiro (Fase 7), sem nenhuma ação tomada.
+
+O servidor HTTP passou a existir (seção acima) — o que continua faltando nele é
+autenticação de usuário humano, CORS, streaming de resposta, rate limit por IP e
+persistência; nenhum tem cliente real esperando ainda (ver
+`docs/esteira/fase-2b-servidor-conversa/spec.md`).
