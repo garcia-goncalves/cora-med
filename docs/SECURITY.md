@@ -106,6 +106,38 @@ cancelamento entre propostas, propagação do signal até o handler, e reconcili
 
 Alerta de provedor não é corte de orçamento. O corte é nosso.
 
+## Superfície HTTP (implementado, 04/09/2026)
+
+Primeira porta de rede da Cora: `apps/server/src/http`, dois endpoints (`GET /health`,
+`POST /turno`), escutando só em `127.0.0.1`. O que protege:
+
+- **Cabeçalho `Host` conferido antes de qualquer roteamento**, contra DNS rebinding —
+  bind em `127.0.0.1` sozinho não impede que uma página hospedada num domínio que o
+  atacante reaponta para `127.0.0.1` fale com o servidor como se fosse same-origin (o
+  navegador olha esquema+host+porta do cabeçalho, não para onde o socket resolve). Sem
+  esta checagem, "escuta só localmente" seria uma garantia falsa.
+- Corpo de requisição tratado como hostil: `Content-Type` obrigatório, teto de 64 KB,
+  `.strict()` em todo nível do schema Zod (campo desconhecido é recusa, não ignorado).
+- Erro traduzido por categoria fechada (`http/erros.ts`) — `MotorError.message` e
+  `WorkspaceApiError.message` nunca cruzam para o corpo HTTP, só para o log do processo.
+- Um motor **novo por requisição** (`deps.criarMotor()` dentro do handler, nunca fora) —
+  a mesma regra de `AnthropicMotor` amarrado a um `runId` (acima) vale aqui.
+
+**O que este endpoint NÃO faz, e é preciso ler com atenção:** `requester.requesterUserId`
+que chega no corpo de `POST /turno` é **afirmação do cliente, não identidade
+verificada** — não há autenticação de usuário humano nesta camada ainda (decisão
+registrada em `docs/esteira/fase-2b-servidor-conversa/spec.md`). Ele serve para o
+registro de execução (`ExecutionRecord`) e nada mais; a autorização real de qualquer
+efeito no Workspace continua vindo do `delegationToken` de ambiente que o processo já
+usa. Enquanto este endpoint não tiver autenticação própria, o registro de execução é
+auditoria de **intenção**, não de **identidade**.
+
+**Consequência para quando existir endpoint de aprovação (Fase 3 em diante):**
+`approvedByUserId` (linha 44 acima) **não pode** ser comparado com um
+`requesterUserId` vindo do corpo HTTP sem autenticação — a trava que impede "aprovação de
+A autorizar ação de B" vira decorativa nesse instante. Isto precisa de solução de
+identidade antes de existir aprovação por HTTP, não depois.
+
 ## Segredos
 
 Nenhum valor de segredo entra em código, log, commit, memória ou documentação — só a

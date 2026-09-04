@@ -10,7 +10,7 @@ não é `feito`.
 | 0 | Inventário, decisão do motor, contrato, coordenação | **feito** |
 | 1 | Consulta autenticada de tarefas | **feito e comprovado** |
 | 2 | Criação de tarefa com prévia aprovável | **feito e comprovado** |
-| 2b | Conversa com modelo de linguagem | **não comprovado** — ver abaixo |
+| 2b | Conversa com modelo de linguagem | **servidor existe e é testado; conversa real não comprovada** — ver abaixo |
 | 3 | Organização e resumo operacional | não iniciada |
 | 4 | Acesso Windows e PWA Android | não iniciada |
 | 5 | Voz | não iniciada |
@@ -166,9 +166,20 @@ Nenhuma dessas coisas ganha botão com sucesso simulado.
 **Criação de tarefa saiu desta lista em 03/09/2026**, e saiu inteira: ela foi exercida
 contra um Workspace real, com prévia, aprovação vinculada ao conteúdo e idempotência.
 
-**Conversa com modelo** saiu desta lista pela metade, e a metade importa: o adaptador
-existe e é testado, mas **não há servidor que o exponha** — nenhum processo desta casa
-escuta em porta. Contar como pronto seria contar `scaffold compila` como `feito`.
+**Conversa com modelo** ganhou a peça que faltava em 04/09/2026: existe agora um servidor
+HTTP (`apps/server/src/http`, `GET /health` e `POST /turno`) escutando em porta,
+encaixado no motor e no laço já existentes. 16 arquivos de teste, 282 testes, todos sem
+rede — `ScriptedMotor` no lugar do motor real. Provado subindo o processo de verdade
+(`pnpm --filter @cora/server run dev`) e batendo com `curl`.
+
+**O que continua faltando, e não vale alegar que foi feito:** nenhuma chamada real à
+Anthropic aconteceu — o processo subiu com uma chave sintética, nunca com uma de verdade.
+A qualidade da extração de intenção em português não foi medida. O custo real por turno
+não foi observado. E o servidor nasceu sem autenticação de usuário humano (usa as
+variáveis de ambiente que o resto da aplicação já usa, não um login novo), sem CORS, sem
+streaming de resposta e sem rate limit por IP — nenhum tem cliente real (desktop, PWA)
+esperando ainda, então ficaram de fora de propósito
+(`docs/esteira/fase-2b-servidor-conversa/spec.md`).
 
 **Orçamento de custo** também saiu pela metade: o preço é real e datado, e o cálculo por
 passo existe. O que não existe é medição de uso real, porque nenhuma chamada foi feita.

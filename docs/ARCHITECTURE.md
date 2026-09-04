@@ -14,7 +14,9 @@ a informação é da empresa, ela mora no Workspace e a Cora consulta por API ve
 ## O caminho de uma ação (implementado)
 
 ```
-usuário → mensagem
+usuário → POST /turno
+            ↓
+      valida corpo (Zod) → monta RequesterContext
             ↓
       runTurn()  ← aplica teto de chamadas, teto de tempo, cancelamento
             ↓
@@ -41,7 +43,7 @@ saída de modelo vire efeito sem passar por `decide()`.
 | `packages/contracts` | schemas Zod do contrato do Workspace + tipos internos | implementado |
 | `packages/workspace-client` | HTTP, erros tipados, paginação com detecção de duplicata e de laço, timeout | implementado |
 | `packages/policy` | catálogo fechado de ferramentas, categorias de risco, hash de aprovação, bloco de dado não confiável | implementado |
-| `apps/server` | `MotorPort`, `AnthropicMotor`, registro de ferramentas, laço `runTurn` | implementado |
+| `apps/server` | `MotorPort`, `AnthropicMotor`, registro de ferramentas, laço `runTurn`, servidor HTTP (`GET /health`, `POST /turno`) | implementado e testado sem rede; a chamada real ao provedor continua não exercida |
 | `apps/desktop` | aplicativo Windows (Electron) | **não existe** |
 
 ## Decisões que já valem
@@ -87,6 +89,22 @@ injetar dependência — levaria o histórico de uma pessoa para dentro da respo
 
 **Tetos são da aplicação.** 10 chamadas de modelo e 120 segundos por padrão, aplicados em
 `runTurn`. Alerta de provedor não é corte.
+
+**Servidor HTTP sem framework.** `apps/server/src/http` usa `node:http` puro — o
+repositório não tinha nenhum framework instalado, e o gargalo real de qualquer chamada é
+o provedor de modelo (segundos), não o roteamento HTTP (microssegundos). Testar bate um
+`fetch()` numa porta efêmera (`server.listen(0)`) dentro do próprio teste vitest, sem
+precisar de `supertest` nem de dependência nova.
+
+**Um motor por requisição HTTP, sempre.** `POST /turno` chama `criarMotor()` **dentro**
+do handler, nunca fora dele — a mesma regra de `AnthropicMotor` amarrado a um `runId`
+(acima) vale aqui: hoistar a criação do motor para o boot do processo levaria o histórico
+de uma pessoa para a resposta a outra.
+
+**Erro HTTP nunca carrega `MotorError.message` nem `WorkspaceApiError.message`.** Os dois
+podem ecoar trecho da própria requisição — por isso a tradução para o corpo HTTP
+(`http/erros.ts`) é só por categoria fechada; o texto original vai apenas para o log do
+processo.
 
 ## Ainda planejado
 
