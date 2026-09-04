@@ -1,16 +1,28 @@
 # LINKS — cora-med
 
-Atualizado em **03/09/2026**.
+Atualizado em **04/09/2026**.
 
-## Não há aplicação para subir neste repositório (ainda)
+## Servidor HTTP da Cora
 
-`cora-med` é hoje um monorepo de **bibliotecas e testes**: contratos, cliente do
-Workspace, política e o esqueleto do servidor. **Não existe processo que escute em
-porta nenhuma** — `apps/server` não tem entrada com `listen()`, e o `package.json`
-não tem script `dev` nem `start`. Por isso `/subir` não sobe nada aqui, e isso não é
-defeito: o servidor HTTP da Cora nasce numa fase posterior.
+Existe desde 04/09/2026: `apps/server/src/http`, dois endpoints. Sobe com
 
-Quando ele existir, esta seção passa a ter o link da aplicação.
+```bash
+WORKSPACE_BASE_URL=http://localhost:4319 \
+WORKSPACE_AGENT_CLIENT=<emitido pelo Workspace> \
+WORKSPACE_AGENT_SECRET=<emitido pelo Workspace> \
+WORKSPACE_DELEGATION_TOKEN=<token de delegação> \
+ANTHROPIC_API_KEY=<chave da Anthropic> \
+pnpm --filter @cora/server run dev
+```
+
+- **Local**: http://127.0.0.1:4320/health — só responde na própria máquina, de propósito
+  (não há autenticação de usuário humano ainda). Porta configurável em `CORA_PORT`.
+- Recusa subir com qualquer variável faltando (código de saída 2, nomeia a variável).
+- Passo a passo completo, exemplos de `curl` e o que aparece se der errado:
+  `docs/OPERATIONS.md`.
+
+⚠️ Nenhuma conversa real com a Anthropic foi feita ainda — só testada com motor de
+mentira e com uma chave sintética. Ver `docs/ROADMAP.md`, Fase 2b.
 
 ## O que dá para rodar
 

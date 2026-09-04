@@ -4,10 +4,11 @@ Assistente empresarial da MedConsultoria, em português do Brasil. Ajuda a Thaí
 organizar a operação, consultar informações, preparar documentos, registrar pedidos e
 executar ações autorizadas no Workspace.
 
-**Estado hoje (03/09/2026): Fases 0 e 1 concluídas.** A Cora consulta as tarefas internas
-do usuário no Workspace por API versionada, com identidade delegada — **comprovado por HTTP
-real**, não por mock: 16 verificações contra um Workspace local, incluindo isolamento entre
-usuários. Ver `docs/ROADMAP.md` para o que é verdade e o que ainda não é.
+**Estado hoje (04/09/2026): Fases 0, 1 e 2 concluídas e comprovadas contra o Workspace
+real.** A Fase 2b está pela metade: existe um servidor HTTP (`apps/server/src/http`,
+`GET /health` e `POST /turno`) que expõe o motor de conversa, testado sem rede e subido
+de verdade — mas nenhuma chamada real à Anthropic foi feita ainda. Ver `docs/ROADMAP.md`
+para o que é verdade e o que ainda não é.
 
 ## Como rodar
 
@@ -37,7 +38,7 @@ packages/contracts/        schemas do contrato do Workspace e do protocolo inter
 packages/workspace-client/ cliente HTTP: erros tipados, paginação segura, timeout
 packages/policy/           catálogo fechado de ferramentas, aprovação por hash,
                            tratamento de conteúdo não confiável
-apps/server/               porta do motor, registro de ferramentas, laço de execução
+apps/server/               motor, registro de ferramentas, laço de execução, servidor HTTP
 scripts/                   integração HTTP real (Fase 1)
 docs/                      arquitetura, fases, segurança, operação, licenças, decisões
 ```
@@ -57,8 +58,10 @@ permissão é o Workspace, sempre.
 
 Nada disto existe hoje, e nenhum botão vai fingir que existe:
 
-- criar tarefa;
-- conversar com um modelo de linguagem;
+- conversar de verdade com um modelo de linguagem (o servidor existe e está testado; a
+  chamada real ao provedor não foi feita);
+- autenticação própria de usuário humano (o servidor usa as mesmas variáveis de ambiente
+  que o resto da aplicação, não um login);
 - voz, wake word, aplicativo Windows, PWA Android;
 - controlar o navegador ou o computador.
 
