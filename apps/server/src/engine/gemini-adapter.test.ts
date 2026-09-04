@@ -466,4 +466,15 @@ describe('traduzirEsquemaParaGemini — degradação conhecida e documentada', (
   it('modelo padrão é o de nível gratuito confirmado por chamada real', () => {
     expect(MODELO_GEMINI_GRATUITO).toBe('gemini-3.6-flash')
   })
+
+  it('remove "additionalProperties", que a API do Gemini rejeita (HTTP 400 confirmado em 04/09/2026)', () => {
+    const esquema = esquemaDe('workspace.tasks.list')!
+    const traduzido = traduzirEsquemaParaGemini(esquema)
+
+    expect(traduzido).not.toHaveProperty('additionalProperties')
+    const propriedades = traduzido.properties as Record<string, Record<string, unknown>>
+    for (const propriedade of Object.values(propriedades)) {
+      expect(propriedade).not.toHaveProperty('additionalProperties')
+    }
+  })
 })

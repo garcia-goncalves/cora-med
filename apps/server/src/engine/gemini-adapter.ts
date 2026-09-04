@@ -339,6 +339,10 @@ function exigirObjeto(
  *   qualquer coisa em produção é obrigatório.
  * - `maximum` também não é suportado — removido, perde o teto declarado no esquema
  *   (ex.: `workspace.tasks.list.limit`), mas a descrição do campo continua orientando.
+ * - `additionalProperties` também não é suportado — confirmado só em 04/09/2026, ao ligar
+ *   o motor de verdade pela primeira vez (`HTTP 400 Bad Request`, campo
+ *   `tools[0].function_declarations[N].parameters`). A validação real continua sendo a do
+ *   servidor (mesma trava de sempre); é só o esquema mandado ao Gemini que fica mais frouxo.
  */
 export function traduzirEsquemaParaGemini(schema: EsquemaFerramenta): Record<string, unknown> {
   return traduzirNo(schema) as Record<string, unknown>
@@ -369,7 +373,8 @@ function traduzirNo(no: unknown): unknown {
   const resultado: Record<string, unknown> = {}
   for (const [chave, valor] of Object.entries(objeto)) {
     // Confirmados sem suporte na API do Gemini em 04/09/2026 — enviá-los quebra a chamada.
-    if (chave === 'maximum' || chave === 'default' || chave === 'optional') continue
+    if (chave === 'maximum' || chave === 'default' || chave === 'optional' || chave === 'additionalProperties')
+      continue
     resultado[chave] = traduzirNo(valor)
   }
   return resultado

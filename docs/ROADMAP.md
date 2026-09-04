@@ -10,7 +10,7 @@ não é `feito`.
 | 0 | Inventário, decisão do motor, contrato, coordenação | **feito** |
 | 1 | Consulta autenticada de tarefas | **feito e comprovado** |
 | 2 | Criação de tarefa com prévia aprovável | **feito e comprovado** |
-| 2b | Conversa com modelo de linguagem | **servidor existe e é testado; conversa real não comprovada** — ver abaixo |
+| 2b | Conversa com modelo de linguagem | **primeiro turno real comprovado (Gemini) — ver abaixo** |
 | 3 | Organização e resumo operacional | não iniciada |
 | 4 | Acesso Windows e PWA Android | não iniciada |
 | 5 | Voz | não iniciada |
@@ -195,10 +195,22 @@ conta nova); `gemini-3.6-flash` respondeu de verdade, e é o modelo padrão do a
 28 testes novos, sem rede, mesma disciplina do motor Anthropic. Custo observado: **zero**
 — nível gratuito, sem faturamento habilitado no projeto do Google.
 
-**Credencial para o primeiro turno real — pedida, não recebida (04/09/2026).** Ticket
-`CORA-004` aberto pedindo ao Workspace um par `AGENT_CLIENT`/`AGENT_SECRET` e um
-`DELEGATION_TOKEN` locais, para subir `apps/server` de verdade e mandar um `POST /turno`
-contra o motor de teste (Gemini). Estado: `proposed`, sem resposta ainda.
+**Primeiro turno real — feito e comprovado (04/09/2026, `CORA-004`).** Credencial LOCAL
+emitida pelo Workspace, `apps/server` subiu de verdade com `MOTOR_PROVIDER=gemini`, e
+`POST /turno` respondeu `200` com a lista real de tarefas de `admin@teste.local`, buscada
+ao vivo no Workspace local. Evidência completa em
+`med-coordination/evidence/cora/2026-09-04-primeiro-turno-real.md`.
+
+No caminho, dois achados: um bug real no `GeminiMotor` (mandava `additionalProperties` no
+esquema das ferramentas; a API do Gemini rejeita — corrigido, com teste, em
+`traduzirEsquemaParaGemini`) e uma prova não planejada de que conteúdo do Workspace chega
+ao motor como dado, não instrução — uma tarefa de fixture com um título de injeção de
+prompt foi listada como texto, nunca obedecida.
+
+**O que continua faltando:** só uma mensagem foi trocada (sem ferramenta de escrita neste
+turno), nenhuma chamada real à Anthropic, e o nível gratuito do Gemini devolveu `503`
+("alta demanda") em duas tentativas antes da que funcionou — comportamento do provedor,
+sem nada a corrigir do nosso lado.
 
 **Roteiro de entrevista para a persona da Cora — 04/09/2026.** A persona hoje
 (`apps/server/src/engine/persona.ts`) é genérica ("assistente de uma clínica"), sem nada
