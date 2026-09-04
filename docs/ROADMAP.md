@@ -195,6 +195,18 @@ conta nova); `gemini-3.6-flash` respondeu de verdade, e é o modelo padrão do a
 28 testes novos, sem rede, mesma disciplina do motor Anthropic. Custo observado: **zero**
 — nível gratuito, sem faturamento habilitado no projeto do Google.
 
+**Credencial para o primeiro turno real — pedida, não recebida (04/09/2026).** Ticket
+`CORA-004` aberto pedindo ao Workspace um par `AGENT_CLIENT`/`AGENT_SECRET` e um
+`DELEGATION_TOKEN` locais, para subir `apps/server` de verdade e mandar um `POST /turno`
+contra o motor de teste (Gemini). Estado: `proposed`, sem resposta ainda.
+
+**Roteiro de entrevista para a persona da Cora — 04/09/2026.** A persona hoje
+(`apps/server/src/engine/persona.ts`) é genérica ("assistente de uma clínica"), sem nada
+específico da MedConsultoria. `docs/negocio/entrevista-thais.md` reúne o que já dava para
+confirmar sozinho (site, Manual da Marca, PDFs de credenciamento no Workspace, mapa de
+telas do sistema) e as perguntas que só a Thaís pode responder — nenhum dado de negócio
+foi inventado para preencher a persona antes da entrevista acontecer.
+
 ## Controles que acompanham toda fase, não a fase 7
 
 Autenticação, autorização, registro de execução, tetos e isolamento de memória entram

@@ -34,6 +34,7 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 | Licenças de terceiros | `docs/THIRD-PARTY.md` |
 | Plano da Fase 1 | `docs/plans/phase-01.md` |
 | Briefing mestre (fonte canônica) | `../med-coordination/CORA-MED-START-HERE.md` |
+| Contexto de negócio da MedConsultoria para a persona da Cora | `docs/negocio/entrevista-thais.md` |
 
 ## Comandos
 
