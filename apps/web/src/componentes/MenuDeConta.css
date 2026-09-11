@@ -1,0 +1,109 @@
+/*
+ * Menu de conta (tela 6 do design.md). Classes prefixadas com "menu-de-conta-", mesma
+ * convenção de "chat-" em Chat.css — arquivo global (sem CSS Modules). O painel se
+ * posiciona relativo ao `<header className="chat-cabecalho">` de Chat.tsx, que recebe
+ * `position: relative` ali mesmo (a única linha tocada fora deste componente) — assim
+ * o painel cobre a largura do cabeçalho inteiro sem esta folha precisar tocar Chat.css.
+ */
+
+.menu-de-conta-ancora {
+  margin-left: auto;
+}
+
+.menu-de-conta-gatilho {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-tocavel-min);
+  height: var(--target-tocavel-min);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-foreground);
+  cursor: pointer;
+}
+
+.menu-de-conta-gatilho:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.menu-de-conta-painel {
+  box-sizing: border-box;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-flutuante);
+}
+
+.menu-de-conta-identidade {
+  font-size: var(--text-sm);
+  color: var(--color-muted-foreground);
+  overflow-wrap: break-word;
+}
+
+.menu-de-conta-item {
+  box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-base);
+  min-height: var(--target-tocavel-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-foreground);
+  cursor: pointer;
+}
+
+.menu-de-conta-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Os dois botões de confirmação ficam lado a lado mesmo em 360px (design.md, tela 6:
+   "cancelar à esquerda, ação à direita" cabe com folga em 328px úteis). */
+.menu-de-conta-confirmacao-botoes {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.menu-de-conta-botao-cancelar,
+.menu-de-conta-botao-sair {
+  flex: 1 1 0;
+  box-sizing: border-box;
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--text-base);
+  min-height: var(--target-tocavel-min);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.menu-de-conta-botao-cancelar {
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-foreground);
+}
+
+.menu-de-conta-botao-sair {
+  border: none;
+  background: var(--color-erro);
+  color: var(--color-erro-foreground);
+}
+
+.menu-de-conta-botao-cancelar:focus-visible,
+.menu-de-conta-botao-sair:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
