@@ -1,4 +1,5 @@
 import type { WorkspaceClient } from '@cora/workspace-client'
+import type { ContaConfigurada } from '../auth/contas.js'
 import { FilaDeEntrada } from '../inbox/fila.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { ArmazemDePrevias, createPreviewTaskTool } from '../tools/workspace-create-task.js'
@@ -21,6 +22,28 @@ export function montarRegistry(client: WorkspaceClient, armazem: ArmazemDePrevia
     .register('workspace.tasks.list', createListTasksTool(client))
     .register('workspace.tasks.create', createPreviewTaskTool(client, armazem))
     .register('workspace.inbox.resumo', createInboxSummaryTool(client, fila))
+}
+
+/**
+ * Um `ToolRegistry` por conta nomeada (decisão D2 do plano da Fase 4) — a única maneira de
+ * a chamada ao Workspace usar o token de delegação da pessoa que está de fato conversando.
+ *
+ * Devolve um `Map` de id da conta para `ToolRegistry`, montado **uma vez no boot**, não por
+ * requisição: a `FilaDeEntrada` de cada conta (dentro de `montarRegistry`) precisa
+ * sobreviver entre turnos da mesma pessoa, como já sobrevive hoje no processo único.
+ *
+ * `criarClient` recebe cada conta e devolve o `WorkspaceClient` dela — é o ponto de
+ * injeção que permite testar esta função sem rede real.
+ */
+export function montarRegistryPorConta(
+  contas: readonly ContaConfigurada[],
+  criarClient: (conta: ContaConfigurada) => WorkspaceClient,
+): Map<string, ToolRegistry> {
+  const registryPorConta = new Map<string, ToolRegistry>()
+  for (const conta of contas) {
+    registryPorConta.set(conta.id, montarRegistry(criarClient(conta), new ArmazemDePrevias()))
+  }
+  return registryPorConta
 }
 
 /**

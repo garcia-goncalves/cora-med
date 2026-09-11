@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CONTRACT_VERSION } from '@cora/contracts'
+import { CONTRACT_VERSION, type RequesterContext } from '@cora/contracts'
 import { WorkspaceApiError, WorkspaceClient } from '@cora/workspace-client'
 import { criarServidorHttp, type DependenciasHttp } from './server.js'
 import { ToolRegistry } from '../tools/registry.js'
@@ -8,6 +8,8 @@ import { createListTasksTool } from '../tools/workspace-tasks.js'
 import { ScriptedMotor } from '../engine/scripted.js'
 import { MotorError } from '../engine/port.js'
 import { criarMotorPorTurno, type AnthropicMessagesApi } from '../engine/anthropic-adapter.js'
+import { ArmazemDeSessoes } from '../auth/sessao.js'
+import { NOME_COOKIE_SESSAO } from '../auth/cookie.js'
 
 /** `Response.json()` tipa como `unknown` nesta configuração (sem lib DOM). Teste confia no formato. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,13 +35,29 @@ afterEach(async () => {
 })
 
 const corpoValido = {
-  requester: { requesterUserId: 'SYNTH-user-1', deviceId: null },
   mensagem: 'SYNTH-crie uma tarefa para o Dr. Souza',
+  deviceId: null,
+}
+
+// A partir da Etapa 10 da Fase 4, `POST /turno` exige sessão: quem conversa é sempre a
+// pessoa autenticada, e o `requesterUserId` vem do cookie, nunca do corpo. Os testes desta
+// suíte que não são sobre sessão em si usam este cookie fixo (token gerado por um
+// `gerarToken` injetado, sem aleatoriedade) para não misturar o que cada um prova.
+const TOKEN_SESSAO_PADRAO = 'SYNTH-token-sessao-conta-1'
+const COOKIE_SESSAO_PADRAO = `${NOME_COOKIE_SESSAO}=${TOKEN_SESSAO_PADRAO}`
+
+/** `ArmazemDeSessoes` com uma sessão já criada para `idDaConta`, token fixo e previsível. */
+function armazemComSessao(idDaConta: string, token: string = TOKEN_SESSAO_PADRAO): ArmazemDeSessoes {
+  const armazem = new ArmazemDeSessoes({ gerarToken: () => token })
+  armazem.criar(idDaConta)
+  return armazem
 }
 
 function motorFalso(): DependenciasHttp {
+  const registry = new ToolRegistry()
   return {
-    registry: new ToolRegistry(),
+    registryDaConta: () => registry,
+    armazemDeSessoes: armazemComSessao('conta-1'),
     criarMotor: () => new ScriptedMotor([{ reply: 'SYNTH-resposta', proposals: [] }]),
     gerarRunId: () => 'SYNTH-run-fixo',
   }
@@ -71,12 +89,155 @@ describe('roteamento', () => {
   })
 })
 
+describe('POST /turno — sessão (Etapa 10 da Fase 4)', () => {
+  it('sem cookie de sessão devolve 401 sessao_ausente, antes de olhar o corpo', async () => {
+    const { base } = await subirServidor(motorFalso())
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpoValido),
+    })
+    expect(resposta.status).toBe(401)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('sessao_ausente')
+  })
+
+  it('cookie com token desconhecido (adulterado) devolve 401 sessao_ausente', async () => {
+    const { base } = await subirServidor(motorFalso())
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `${NOME_COOKIE_SESSAO}=SYNTH-token-nunca-emitido`,
+      },
+      body: JSON.stringify(corpoValido),
+    })
+    expect(resposta.status).toBe(401)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('sessao_ausente')
+  })
+
+  it('sessão expirada devolve 401 sessao_expirada', async () => {
+    const registry = new ToolRegistry()
+    const deps: DependenciasHttp = {
+      registryDaConta: () => registry,
+      // TTL negativo: a sessão nasce já expirada, sem precisar mexer no relógio.
+      armazemDeSessoes: new ArmazemDeSessoes({ gerarToken: () => TOKEN_SESSAO_PADRAO, ttlMs: -1 }),
+      criarMotor: () => new ScriptedMotor([{ reply: 'SYNTH-resposta', proposals: [] }]),
+      gerarRunId: () => 'SYNTH-run-expirado',
+    }
+    deps.armazemDeSessoes.criar('conta-1')
+
+    const { base } = await subirServidor(deps)
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify(corpoValido),
+    })
+    expect(resposta.status).toBe(401)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('sessao_expirada')
+  })
+
+  it('sessão válida, mas sem registry para a conta, devolve 401 sessao_ausente', async () => {
+    const deps: DependenciasHttp = {
+      registryDaConta: () => undefined,
+      armazemDeSessoes: armazemComSessao('conta-removida'),
+      criarMotor: () => new ScriptedMotor([{ reply: 'SYNTH-resposta', proposals: [] }]),
+      gerarRunId: () => 'SYNTH-run-sem-registry',
+    }
+    const { base } = await subirServidor(deps)
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify(corpoValido),
+    })
+    expect(resposta.status).toBe(401)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('sessao_ausente')
+  })
+
+  it('sessão válida usa o registry da própria conta — dois registries de mentira, distinguíveis', async () => {
+    const chamadasRegistryDaConta1: string[] = []
+    const chamadasRegistryDaConta2: string[] = []
+    const registryDaConta1 = new ToolRegistry().register('workspace.tasks.list', async () => {
+      chamadasRegistryDaConta1.push('chamado')
+      return { ok: true }
+    })
+    const registryDaConta2 = new ToolRegistry().register('workspace.tasks.list', async () => {
+      chamadasRegistryDaConta2.push('chamado')
+      return { ok: true }
+    })
+
+    const deps: DependenciasHttp = {
+      registryDaConta: (idDaConta) =>
+        idDaConta === 'conta-1' ? registryDaConta1 : registryDaConta2,
+      armazemDeSessoes: armazemComSessao('conta-1'),
+      criarMotor: () =>
+        new ScriptedMotor([
+          { reply: null, proposals: [{ toolName: 'workspace.tasks.list', args: {} }] },
+          { reply: 'SYNTH-pronto', proposals: [] },
+        ]),
+      gerarRunId: () => 'SYNTH-run-conta-1',
+    }
+
+    const { base } = await subirServidor(deps)
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify(corpoValido),
+    })
+
+    expect(resposta.status).toBe(200)
+    expect(chamadasRegistryDaConta1).toEqual(['chamado'])
+    expect(chamadasRegistryDaConta2).toEqual([])
+  })
+
+  it('requesterUserId do registro de execução é o id da conta, nunca o e-mail', async () => {
+    let requesterRecebido: RequesterContext | undefined
+    const registry = new ToolRegistry().register('workspace.tasks.list', async ({ requester }) => {
+      requesterRecebido = requester
+      return { ok: true }
+    })
+    const deps: DependenciasHttp = {
+      registryDaConta: () => registry,
+      armazemDeSessoes: armazemComSessao('conta-1'),
+      criarMotor: () =>
+        new ScriptedMotor([
+          { reply: null, proposals: [{ toolName: 'workspace.tasks.list', args: {} }] },
+          { reply: 'SYNTH-pronto', proposals: [] },
+        ]),
+      gerarRunId: () => 'SYNTH-run-requester',
+    }
+
+    const { base } = await subirServidor(deps)
+    await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify(corpoValido),
+    })
+
+    expect(requesterRecebido?.requesterUserId).toBe('conta-1')
+    expect(requesterRecebido?.requesterUserId).not.toContain('@')
+  })
+
+  it('corpo com "requester" devolve 422 — a identidade não vem mais do cliente', async () => {
+    const { base } = await subirServidor(motorFalso())
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify({
+        ...corpoValido,
+        requester: { requesterUserId: 'SYNTH-forjado', deviceId: null },
+      }),
+    })
+    expect(resposta.status).toBe(422)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('corpo_invalido')
+  })
+})
+
 describe('POST /turno — validação do corpo', () => {
   it('Content-Type diferente de application/json devolve 415', async () => {
     const { base } = await subirServidor(motorFalso())
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'text/plain', Cookie: COOKIE_SESSAO_PADRAO },
       body: 'oi',
     })
     expect(resposta.status).toBe(415)
@@ -87,7 +248,7 @@ describe('POST /turno — validação do corpo', () => {
     const { base } = await subirServidor(motorFalso())
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: 'nao e json',
     })
     expect(resposta.status).toBe(400)
@@ -96,39 +257,35 @@ describe('POST /turno — validação do corpo', () => {
     expect(corpo).not.toMatch(/at .*\.ts:\d+/)
   })
 
-  it('corpo sem requester devolve 400 requester_ausente', async () => {
+  it('corpo sem mensagem devolve 422 corpo_invalido', async () => {
     const { base } = await subirServidor(motorFalso())
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mensagem: 'SYNTH-oi' }),
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify({ deviceId: null }),
     })
-    expect(resposta.status).toBe(400)
-    expect((await jsonDe(resposta)).erro.categoria).toBe('requester_ausente')
+    expect(resposta.status).toBe(422)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('corpo_invalido')
   })
 
-  it('requester malformado devolve 422 corpo_invalido, sem o valor rejeitado', async () => {
+  it('deviceId malformado devolve 422 corpo_invalido, sem o valor rejeitado', async () => {
     const { base } = await subirServidor(motorFalso())
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requester: { requesterUserId: 'SYNTH-valor-que-nao-pode-vazar', deviceId: 123 },
-        mensagem: 'SYNTH-oi',
-      }),
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify({ mensagem: 'SYNTH-oi', deviceId: 123 }),
     })
     expect(resposta.status).toBe(422)
     const corpo = await jsonDe(resposta)
     expect(corpo.erro.categoria).toBe('corpo_invalido')
     expect(corpo.erro.campos).toBeDefined()
-    expect(JSON.stringify(corpo)).not.toContain('SYNTH-valor-que-nao-pode-vazar')
   })
 
   it('campo extra no corpo (runId forjado) devolve 422 — prova o .strict()', async () => {
     const { base } = await subirServidor(motorFalso())
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify({ ...corpoValido, runId: 'SYNTH-forjado' }),
     })
     expect(resposta.status).toBe(422)
@@ -137,12 +294,12 @@ describe('POST /turno — validação do corpo', () => {
   it('corpo maior que o teto devolve 413 e o servidor continua atendendo', async () => {
     const { base } = await subirServidor(motorFalso())
     const grande = JSON.stringify({
-      requester: corpoValido.requester,
       mensagem: 'a'.repeat(100_000),
+      deviceId: null,
     })
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: grande,
     })
     expect(resposta.status).toBe(413)
@@ -157,7 +314,7 @@ describe('POST /turno — caminho feliz', () => {
     const { base } = await subirServidor(motorFalso())
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
     expect(resposta.status).toBe(200)
@@ -182,7 +339,8 @@ describe('POST /turno — caminho feliz', () => {
     const registry = new ToolRegistry().register('workspace.tasks.list', createListTasksTool(client))
 
     const deps: DependenciasHttp = {
-      registry,
+      registryDaConta: () => registry,
+      armazemDeSessoes: armazemComSessao('conta-1'),
       criarMotor: () =>
         new ScriptedMotor([
           { reply: null, proposals: [{ toolName: 'workspace.tasks.list', args: {} }] },
@@ -194,7 +352,7 @@ describe('POST /turno — caminho feliz', () => {
     const { base } = await subirServidor(deps)
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
     expect(resposta.status).toBe(200)
@@ -206,7 +364,8 @@ describe('POST /turno — caminho feliz', () => {
 
   it('proposta de efeito externo devolve needs_approval', async () => {
     const deps: DependenciasHttp = {
-      registry: new ToolRegistry(),
+      registryDaConta: () => new ToolRegistry(),
+      armazemDeSessoes: armazemComSessao('conta-1'),
       criarMotor: () =>
         new ScriptedMotor([
           { reply: null, proposals: [{ toolName: 'workspace.email.send', args: { para: 'x' } }] },
@@ -216,7 +375,7 @@ describe('POST /turno — caminho feliz', () => {
     const { base } = await subirServidor(deps)
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
     expect(resposta.status).toBe(200)
@@ -233,7 +392,8 @@ describe('POST /turno — um motor novo por requisição', () => {
     const runIds = ['SYNTH-run-a', 'SYNTH-run-b']
     let chamada = 0
     const deps: DependenciasHttp = {
-      registry: new ToolRegistry(),
+      registryDaConta: () => new ToolRegistry(),
+      armazemDeSessoes: armazemComSessao('conta-1'),
       criarMotor: () => {
         const motor = new ScriptedMotor([{ reply: 'SYNTH-ok', proposals: [] }])
         instancias.push(motor)
@@ -245,12 +405,12 @@ describe('POST /turno — um motor novo por requisição', () => {
 
     const r1 = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
     const r2 = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
 
@@ -283,7 +443,8 @@ describe('POST /turno — um motor novo por requisição', () => {
     const fabrica = criarMotorPorTurno({ messages: apiFalsa })
     let runId = 0
     const deps: DependenciasHttp = {
-      registry: new ToolRegistry(),
+      registryDaConta: () => new ToolRegistry(),
+      armazemDeSessoes: armazemComSessao('conta-1'),
       criarMotor: fabrica,
       gerarRunId: () => `SYNTH-run-real-${runId++}`,
     }
@@ -291,12 +452,12 @@ describe('POST /turno — um motor novo por requisição', () => {
 
     const r1 = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
     const r2 = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
 
@@ -312,7 +473,8 @@ describe('POST /turno — falha do motor não vaza', () => {
   it('MotorError vira 502 tipado; o motivo original só vai para o log injetado', async () => {
     const logs: string[] = []
     const deps: DependenciasHttp = {
-      registry: new ToolRegistry(),
+      registryDaConta: () => new ToolRegistry(),
+      armazemDeSessoes: armazemComSessao('conta-1'),
       criarMotor: () => ({
         name: 'motor-que-falha',
         step: async () => {
@@ -328,7 +490,7 @@ describe('POST /turno — falha do motor não vaza', () => {
     const { base } = await subirServidor(deps)
     const resposta = await fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
     })
     expect(resposta.status).toBe(502)
@@ -353,7 +515,7 @@ describe('POST /turno — variável de ambiente nunca aparece no corpo', () => {
         await (
           await fetch(`${base}/turno`, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
+            headers: { 'Content-Type': 'text/plain', Cookie: COOKIE_SESSAO_PADRAO },
             body: 'x',
           })
         ).text(),
@@ -362,7 +524,7 @@ describe('POST /turno — variável de ambiente nunca aparece no corpo', () => {
         await (
           await fetch(`${base}/turno`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
             body: 'nao e json',
           })
         ).text(),
@@ -371,8 +533,8 @@ describe('POST /turno — variável de ambiente nunca aparece no corpo', () => {
         await (
           await fetch(`${base}/turno`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mensagem: 'SYNTH-oi' }),
+            headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+            body: JSON.stringify({ deviceId: null }),
           })
         ).text(),
       )
@@ -393,15 +555,20 @@ describe('POST /turno — nenhum 500 não tratado nos casos de erro do cliente',
     const casos = [
       { path: '/desconhecido', init: {} },
       { path: '/turno', init: { method: 'GET' } },
+      { path: '/turno', init: { method: 'POST' } },
       {
         path: '/turno',
-        init: { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: 'x' },
+        init: {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain', Cookie: COOKIE_SESSAO_PADRAO },
+          body: 'x',
+        },
       },
       {
         path: '/turno',
         init: {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
           body: 'nao e json',
         },
       },
@@ -409,8 +576,8 @@ describe('POST /turno — nenhum 500 não tratado nos casos de erro do cliente',
         path: '/turno',
         init: {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mensagem: 'SYNTH-oi' }),
+          headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+          body: JSON.stringify({ deviceId: null }),
         },
       },
     ] as const
@@ -472,7 +639,8 @@ describe('POST /turno — desconexão do cliente cancela o turno', () => {
     })
 
     const deps: DependenciasHttp = {
-      registry,
+      registryDaConta: () => registry,
+      armazemDeSessoes: armazemComSessao('conta-1'),
       criarMotor: () =>
         new ScriptedMotor([
           { reply: null, proposals: [{ toolName: 'workspace.tasks.list', args: {} }] },
@@ -484,7 +652,7 @@ describe('POST /turno — desconexão do cliente cancela o turno', () => {
     const controller = new AbortController()
     const requisicao = fetch(`${base}/turno`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
       body: JSON.stringify(corpoValido),
       signal: controller.signal,
     }).catch(() => undefined)
