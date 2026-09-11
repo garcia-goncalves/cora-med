@@ -1,13 +1,13 @@
 import { useSessao } from './estado/sessao.js'
+import { Chat } from './telas/Chat.js'
 import { Login } from './telas/Login.js'
 
 /**
- * Decide entre a tela de login (Etapa 14) e a conversa, conforme o estado de sessão
- * (`GET /auth/sessao`, Etapa 12). A tela de chat de verdade chega na Etapa 15; até lá,
- * a pessoa autenticada vê só um marcador.
+ * Decide entre a tela de login (Etapa 14) e a conversa (Etapa 15), conforme o estado de
+ * sessão (`GET /auth/sessao`, Etapa 12).
  */
 export function App() {
-  const { estado, definirSessao } = useSessao()
+  const { estado, definirSessao, encerrarSessao } = useSessao()
 
   if (estado.status === 'verificando') {
     return null
@@ -17,6 +17,5 @@ export function App() {
     return <Login aoEntrar={definirSessao} />
   }
 
-  // estado.status === 'autenticado' — marcador provisório até a Etapa 15.
-  return <div>Cora — {estado.sessao.nome}</div>
+  return <Chat sessao={estado.sessao} aoSessaoExpirar={encerrarSessao} />
 }
