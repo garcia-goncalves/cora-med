@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceClient } from '@cora/workspace-client'
+import type { ContaConfigurada } from '../auth/contas.js'
 import { montarFerramentas } from '../engine/tool-schemas.js'
 import { ArmazemDePrevias } from '../tools/workspace-create-task.js'
-import { montarRegistry, porta } from './boot.js'
+import { montarRegistry, montarRegistryPorConta, porta } from './boot.js'
 
 function clienteFalso(): WorkspaceClient {
   return new WorkspaceClient({
@@ -12,6 +13,16 @@ function clienteFalso(): WorkspaceClient {
     delegationToken: 'SYNTH-token',
     fetchImpl: async () => new Response('{}', { status: 200 }),
   })
+}
+
+function contaFalsa(indice: number): ContaConfigurada {
+  return {
+    id: `conta-${indice}`,
+    nome: `SYNTH-Pessoa ${indice}`,
+    email: `synth-pessoa-${indice}@teste.local`,
+    hashDeSenha: 'SYNTH-hash',
+    tokenDeDelegacao: `SYNTH-token-conta-${indice}`,
+  }
 }
 
 describe('montarRegistry', () => {
@@ -27,6 +38,42 @@ describe('montarRegistry', () => {
   it('toda ferramenta registrada tem esquema — montarFerramentas não lança', () => {
     const registry = montarRegistry(clienteFalso(), new ArmazemDePrevias())
     expect(() => montarFerramentas(registry.availableToolNames())).not.toThrow()
+  })
+})
+
+describe('montarRegistryPorConta', () => {
+  it('devolve um registry por conta, cada um com o token de delegação certo', () => {
+    const contas = [contaFalsa(1), contaFalsa(2)]
+    const tokensRecebidos: string[] = []
+
+    const registryPorConta = montarRegistryPorConta(contas, (conta) => {
+      tokensRecebidos.push(conta.tokenDeDelegacao)
+      return clienteFalso()
+    })
+
+    expect(tokensRecebidos).toEqual(['SYNTH-token-conta-1', 'SYNTH-token-conta-2'])
+    expect(registryPorConta.size).toBe(2)
+    expect(registryPorConta.get('conta-1')?.availableToolNames()).toEqual([
+      'workspace.inbox.resumo',
+      'workspace.tasks.create',
+      'workspace.tasks.list',
+    ])
+  })
+
+  it('cada conta ganha um ToolRegistry distinto — a fila de entrada não é compartilhada', () => {
+    const contas = [contaFalsa(1), contaFalsa(2)]
+    const registryPorConta = montarRegistryPorConta(contas, () => clienteFalso())
+
+    const registryDaConta1 = registryPorConta.get('conta-1')
+    const registryDaConta2 = registryPorConta.get('conta-2')
+    expect(registryDaConta1).toBeDefined()
+    expect(registryDaConta2).toBeDefined()
+    expect(registryDaConta1).not.toBe(registryDaConta2)
+  })
+
+  it('conta desconhecida não tem entrada no mapa', () => {
+    const registryPorConta = montarRegistryPorConta([contaFalsa(1)], () => clienteFalso())
+    expect(registryPorConta.get('conta-99')).toBeUndefined()
   })
 })
 

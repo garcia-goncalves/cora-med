@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { MAX_CHARS_MENSAGEM, PedidoDeTurnoSchema, montarRequester } from './contrato.js'
 
 const corpoValido = {
-  requester: { requesterUserId: 'SYNTH-user-1', deviceId: null },
   mensagem: 'SYNTH-crie uma tarefa para o Dr. Souza',
+  deviceId: null,
 }
 
 describe('PedidoDeTurnoSchema', () => {
@@ -12,16 +12,13 @@ describe('PedidoDeTurnoSchema', () => {
     expect(resultado.success).toBe(true)
   })
 
-  it('recusa corpo sem requester', () => {
-    const resultado = PedidoDeTurnoSchema.safeParse({ mensagem: 'SYNTH-oi' })
+  it('recusa corpo sem mensagem', () => {
+    const resultado = PedidoDeTurnoSchema.safeParse({ deviceId: null })
     expect(resultado.success).toBe(false)
   })
 
-  it('recusa requesterUserId vazio', () => {
-    const resultado = PedidoDeTurnoSchema.safeParse({
-      ...corpoValido,
-      requester: { ...corpoValido.requester, requesterUserId: '' },
-    })
+  it('recusa corpo sem deviceId', () => {
+    const resultado = PedidoDeTurnoSchema.safeParse({ mensagem: 'SYNTH-oi' })
     expect(resultado.success).toBe(false)
   })
 
@@ -31,10 +28,7 @@ describe('PedidoDeTurnoSchema', () => {
   })
 
   it('recusa deviceId vazio (string vazia não é "sem dispositivo")', () => {
-    const resultado = PedidoDeTurnoSchema.safeParse({
-      ...corpoValido,
-      requester: { ...corpoValido.requester, deviceId: '' },
-    })
+    const resultado = PedidoDeTurnoSchema.safeParse({ ...corpoValido, deviceId: '' })
     expect(resultado.success).toBe(false)
   })
 
@@ -56,22 +50,22 @@ describe('PedidoDeTurnoSchema', () => {
     expect(resultado.success).toBe(false)
   })
 
-  it('recusa campo desconhecido dentro de requester (aprovação não vem do cliente)', () => {
+  it('recusa "requester" (a identidade agora vem da sessão, nunca do corpo)', () => {
     const resultado = PedidoDeTurnoSchema.safeParse({
-      requester: { ...corpoValido.requester, aprovacoes: [] },
-      mensagem: corpoValido.mensagem,
+      ...corpoValido,
+      requester: { requesterUserId: 'SYNTH-user-forjado', deviceId: null },
     })
     expect(resultado.success).toBe(false)
   })
 })
 
 describe('montarRequester', () => {
-  it('monta RequesterContext com o runId do gerador injetado', () => {
+  it('monta RequesterContext com o id da conta vindo da sessão, não do corpo', () => {
     const parsed = PedidoDeTurnoSchema.parse(corpoValido)
-    const requester = montarRequester(parsed, () => 'SYNTH-run-fixo')
+    const requester = montarRequester(parsed, 'conta-1', () => 'SYNTH-run-fixo')
 
     expect(requester).toEqual({
-      requesterUserId: 'SYNTH-user-1',
+      requesterUserId: 'conta-1',
       deviceId: null,
       runId: 'SYNTH-run-fixo',
     })
@@ -80,7 +74,7 @@ describe('montarRequester', () => {
   it('produz um objeto que passa em RequesterContextSchema', async () => {
     const { RequesterContextSchema } = await import('@cora/contracts')
     const parsed = PedidoDeTurnoSchema.parse(corpoValido)
-    const requester = montarRequester(parsed, () => 'SYNTH-run-2')
+    const requester = montarRequester(parsed, 'conta-2', () => 'SYNTH-run-2')
 
     expect(RequesterContextSchema.safeParse(requester).success).toBe(true)
   })

@@ -59,21 +59,23 @@ function contaSynth(): ContaConfigurada {
 }
 
 function motorFalso() {
+  const registry = new ToolRegistry()
   return {
-    registry: new ToolRegistry(),
+    registryDaConta: () => registry,
     criarMotor: () => new ScriptedMotor([{ reply: 'SYNTH-resposta', proposals: [] }]),
   }
 }
 
 function montarDeps(overrides: Partial<DependenciasDeAuth> = {}): DependenciasHttp {
+  const armazemDeSessoes = overrides.armazemDeSessoes ?? new ArmazemDeSessoes()
   const auth: DependenciasDeAuth = {
     contas: [contaSynth()],
-    armazemDeSessoes: overrides.armazemDeSessoes ?? new ArmazemDeSessoes(),
+    armazemDeSessoes,
     freio: overrides.freio ?? new FreioDeTentativas(),
     portaDeHash,
     ...overrides,
   }
-  return { ...motorFalso(), auth }
+  return { ...motorFalso(), armazemDeSessoes, auth }
 }
 
 describe('POST /auth/entrar', () => {

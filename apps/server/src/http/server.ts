@@ -6,6 +6,8 @@ import type { MotorPort } from '../engine/port.js'
 import { runTurn, DEFAULT_LIMITS, type TurnLimits } from '../run/turn.js'
 import type { ToolRegistry } from '../tools/registry.js'
 import { type DependenciasDeAuth, tratarEntrar, tratarSair, tratarSessao } from '../auth/rotas.js'
+import { NOME_COOKIE_SESSAO, lerCookie } from '../auth/cookie.js'
+import type { ArmazemDeSessoes } from '../auth/sessao.js'
 import { PedidoDeTurnoSchema, montarRequester } from './contrato.js'
 import { descreverParaLog, erroDeCategoria, traduzirFalha, type RespostaDeErro } from './erros.js'
 
@@ -14,7 +16,16 @@ import { descreverParaLog, erroDeCategoria, traduzirFalha, type RespostaDeErro }
 export const MAX_BYTES_CORPO = 64 * 1024
 
 export interface DependenciasHttp {
-  registry: ToolRegistry
+  /**
+   * Devolve o `ToolRegistry` da conta autenticada, ou `undefined` se o id não corresponde a
+   * nenhuma conta configurada (ex.: sessão emitida para uma conta removida depois). Um
+   * registry por conta (decisão D2 da Fase 4) — nunca compartilhado entre pessoas, porque
+   * cada um fala com o Workspace pelo token de delegação daquela conta.
+   */
+  registryDaConta: (idDaConta: string) => ToolRegistry | undefined
+  /** Onde `POST /turno` valida o cookie de sessão. Obrigatório: a partir da Etapa 10 da
+   * Fase 4, quem conversa com a Cora é sempre a pessoa autenticada. */
+  armazemDeSessoes: ArmazemDeSessoes
   /** Chamado UMA VEZ por requisição de turno. Nunca reaproveitar entre requisições —
    * ver o comentário dentro do handler de `POST /turno`. */
   criarMotor: () => MotorPort
@@ -83,6 +94,34 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
   res.on('close', onClose)
 
   try {
+    // A identidade de quem fala vem SEMPRE da sessão, nunca do corpo — checado antes de
+    // ler ou validar o corpo, para que um pedido sem sessão nunca chegue a gastar tempo
+    // com Zod nem com o motor.
+    const token = lerCookie(req.headers.cookie, NOME_COOKIE_SESSAO)
+    if (!token) {
+      enviarErro(res, erroDeCategoria('sessao_ausente'))
+      return
+    }
+
+    const resultadoDaSessao = deps.armazemDeSessoes.validar(token)
+    if (resultadoDaSessao.estado === 'inexistente') {
+      enviarErro(res, erroDeCategoria('sessao_ausente'))
+      return
+    }
+    if (resultadoDaSessao.estado === 'expirada') {
+      enviarErro(res, erroDeCategoria('sessao_expirada'))
+      return
+    }
+
+    const idDaConta = resultadoDaSessao.sessao.idDaConta
+    const registry = deps.registryDaConta(idDaConta)
+    if (!registry) {
+      // Sessão válida, mas a conta some da configuração de quem chama — trata como se
+      // nunca tivesse existido, mesma disciplina de `auth/rotas.ts:tratarSessao`.
+      enviarErro(res, erroDeCategoria('sessao_ausente'))
+      return
+    }
+
     const contentType = req.headers['content-type'] ?? ''
     if (!contentType.toLowerCase().startsWith('application/json')) {
       enviarErro(res, erroDeCategoria('tipo_nao_suportado'))
@@ -108,22 +147,13 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
       return
     }
 
-    if (
-      corpoBruto === null ||
-      typeof corpoBruto !== 'object' ||
-      !('requester' in corpoBruto)
-    ) {
-      enviarErro(res, erroDeCategoria('requester_ausente'))
-      return
-    }
-
     const parsed = PedidoDeTurnoSchema.safeParse(corpoBruto)
     if (!parsed.success) {
       enviarErro(res, traduzirFalha(parsed.error))
       return
     }
 
-    const requester = montarRequester(parsed.data, deps.gerarRunId ?? randomUUID)
+    const requester = montarRequester(parsed.data, idDaConta, deps.gerarRunId ?? randomUUID)
 
     // Um motor NOVO por requisição, criado aqui dentro — nunca fora do handler. Um motor
     // de processo único (ex.: `const motor = deps.criarMotor()` no boot) levaria o
@@ -133,7 +163,7 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
 
     const outcome = await runTurn({
       motor,
-      registry: deps.registry,
+      registry,
       requester,
       messages: [{ role: 'user', content: parsed.data.mensagem }],
       limits: deps.limits ?? DEFAULT_LIMITS,

@@ -14,8 +14,11 @@ import { WorkspaceClient } from '@cora/workspace-client'
 import { criarMotorPorTurno } from '../engine/anthropic-adapter.js'
 import { criarClienteGeminiHttp, criarMotorGeminiPorTurno } from '../engine/gemini-adapter.js'
 import type { MotorPort } from '../engine/port.js'
-import { ArmazemDePrevias } from '../tools/workspace-create-task.js'
-import { montarRegistry, porta } from './boot.js'
+import { carregarContas, type ContaConfigurada } from '../auth/contas.js'
+import { criarHashArgon2id } from '../auth/senha.js'
+import { ArmazemDeSessoes } from '../auth/sessao.js'
+import { FreioDeTentativas } from '../auth/freio.js'
+import { montarRegistryPorConta, porta } from './boot.js'
 import { criarServidorHttp } from './server.js'
 
 function exigir(nome: string): string {
@@ -56,7 +59,6 @@ function main(): void {
   const workspaceBaseUrl = exigir('WORKSPACE_BASE_URL')
   const serviceClientId = exigir('WORKSPACE_AGENT_CLIENT')
   const serviceSecret = exigir('WORKSPACE_AGENT_SECRET')
-  const delegationToken = exigir('WORKSPACE_DELEGATION_TOKEN')
   const criarMotor = escolherCriadorDeMotor()
 
   let portaEscolhida: number
@@ -67,18 +69,49 @@ function main(): void {
     process.exit(2)
   }
 
-  const client = new WorkspaceClient({
-    baseUrl: workspaceBaseUrl,
-    serviceClientId,
-    serviceSecret,
-    delegationToken,
+  // As duas contas nomeadas, cada uma com seu próprio token de delegação — substitui a
+  // antiga variável única `WORKSPACE_DELEGATION_TOKEN` (Etapa 7 e decisão D2 da Fase 4).
+  let contas: ContaConfigurada[]
+  try {
+    contas = carregarContas(process.env)
+  } catch (cause) {
+    console.error(cause instanceof Error ? cause.message : String(cause))
+    process.exit(2)
+  }
+
+  const registryPorConta = montarRegistryPorConta(
+    contas,
+    (conta) =>
+      new WorkspaceClient({
+        baseUrl: workspaceBaseUrl,
+        serviceClientId,
+        serviceSecret,
+        delegationToken: conta.tokenDeDelegacao,
+      }),
+  )
+
+  // UMA só instância: é ela que faz uma sessão criada em `POST /auth/entrar` valer em
+  // `POST /turno` — duas instâncias separadas fariam todo turno cair em `sessao_ausente`
+  // mesmo com login bem-sucedido.
+  const armazemDeSessoes = new ArmazemDeSessoes()
+
+  const server = criarServidorHttp({
+    registryDaConta: (idDaConta) => registryPorConta.get(idDaConta),
+    armazemDeSessoes,
+    criarMotor,
+    auth: {
+      contas,
+      armazemDeSessoes,
+      freio: new FreioDeTentativas(),
+      portaDeHash: criarHashArgon2id(),
+      cookieInseguro: process.env.CORA_COOKIE_INSEGURO === '1',
+    },
   })
-  const registry = montarRegistry(client, new ArmazemDePrevias())
 
-  const server = criarServidorHttp({ registry, criarMotor })
-
-  // 127.0.0.1 explícito, não 0.0.0.0: é a primeira porta de rede desta casa e não há
-  // autenticação de usuário humano ainda — nada de aceitar conexão de fora da máquina.
+  // 127.0.0.1 explícito, não 0.0.0.0: é a primeira porta de rede desta casa. A partir da
+  // Etapa 10 da Fase 4 há autenticação de usuário humano (cookie de sessão em
+  // `/auth/*` e `/turno`) — mas o bind continua local: expor a porta para fora da
+  // máquina é decisão de publicação, não deste processo.
   server.listen(portaEscolhida, '127.0.0.1', () => {
     console.log(
       `Cora escutando em http://127.0.0.1:${portaEscolhida} — GET /health, POST /turno`,
