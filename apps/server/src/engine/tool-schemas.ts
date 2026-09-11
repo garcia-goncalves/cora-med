@@ -149,6 +149,12 @@ const ESQUEMAS: Readonly<Record<string, EsquemaFerramenta>> = {
     required: ['titulo'],
     additionalProperties: false,
   },
+  'workspace.inbox.resumo': {
+    type: 'object',
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
 }
 
 /** Nomes que têm esquema. Usado pelo teste que compara com o catálogo. */
