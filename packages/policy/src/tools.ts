@@ -49,6 +49,12 @@ export const TOOL_CATALOG: readonly ToolSpec[] = [
     contract: 'workspace-agent-v1',
   },
   {
+    name: 'workspace.inbox.resumo',
+    category: 'read',
+    humanDescription: 'Resumir o que está pendente para você, dizendo de onde veio cada item',
+    contract: 'workspace-agent-v1',
+  },
+  {
     name: 'system.install',
     category: 'privileged',
     humanDescription: 'Instalar software ou alterar configuração do sistema',

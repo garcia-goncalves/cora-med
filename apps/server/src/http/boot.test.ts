@@ -15,9 +15,10 @@ function clienteFalso(): WorkspaceClient {
 }
 
 describe('montarRegistry', () => {
-  it('registra exatamente as duas ferramentas que têm handler hoje', () => {
+  it('registra exatamente as três ferramentas que têm handler hoje', () => {
     const registry = montarRegistry(clienteFalso(), new ArmazemDePrevias())
     expect(registry.availableToolNames()).toEqual([
+      'workspace.inbox.resumo',
       'workspace.tasks.create',
       'workspace.tasks.list',
     ])
