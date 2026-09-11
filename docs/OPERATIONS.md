@@ -11,7 +11,7 @@ pnpm run test
 pnpm run typecheck
 ```
 
-**O que aparece se der certo:** `Test Files 36 passed (36)` e `Tests 532 passed (532)`.
+**O que aparece se der certo:** `Test Files 36 passed (36)` e `Tests 548 passed (548)`.
 O typecheck não imprime nada quando passa — silêncio é sucesso.
 
 **Se der errado:** `ERR_PNPM_...` normalmente é falta de rede na hora do install; rode
@@ -103,6 +103,9 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:4320/turno \
 - `CORA_PORT` ou `CORA_BIND` com valor inválido (porta fora de 1–65535, endereço com
   espaço): mesma saída, código `2`, nomeando a variável.
 - `CORA_HOSTS_PERMITIDOS` com um host vazio (vírgula sobrando): mesma saída, código `2`.
+- `CORA_COOKIE_INSEGURO=1` junto com `CORA_HOSTS_PERMITIDOS` tendo um host além dos
+  padrões locais: mesma saída, código `2`, nomeando as duas variáveis — sinal de
+  configuração de produção com cookie sem `Secure`.
 - E-mail ou senha incorretos em `POST /auth/entrar`: `401` `credenciais_invalidas` —
   tempo de resposta igual exista ou não a conta, para não vazar quais e-mails têm login.
 - Tentativas demais na mesma combinação IP+e-mail ou só no IP: `429`
@@ -219,7 +222,22 @@ CORA_RAIZ_ESTATICA=
 
 # "1" desliga o atributo Secure do cookie de sessão — só em desenvolvimento sem
 # HTTPS local. Padrão (omitida): Secure ligado. Nunca definir "1" em produção.
+# O processo RECUSA SUBIR (código 2) se esta variável estiver "1" ao mesmo tempo que
+# CORA_HOSTS_PERMITIDOS tiver algum host além de 127.0.0.1/localhost/[::1]/::1 — essa
+# combinação é o sinal de que o processo pensa que está em produção.
 CORA_COOKIE_INSEGURO=
+
+# "1" faz o processo confiar no cabeçalho X-Forwarded-For para descobrir o IP de quem
+# fez a requisição (usado pelo freio de tentativas de login). SÓ ligar quando o processo
+# roda atrás de um proxy reverso confiável que SEMPRE sobrescreve esse cabeçalho — a
+# publicação na TineHost, atrás do DirectAdmin (`docs/publicacao/tinehost.md`), é esse
+# caso. Sem esta variável (padrão), o IP vem de `req.socket.remoteAddress`; atrás de um
+# proxy sem ela, todo pedido chega com o MESMO endereço (o do proxy), e o freio de
+# tentativas bloquearia as duas contas reais com 5 requisições de qualquer atacante.
+# Ligar esta variável SEM estar de fato atrás de um proxy confiável permite que qualquer
+# cliente forje o próprio IP (o cabeçalho não é verificado) e contorne o freio — nunca
+# ligar em desenvolvimento local nem em publicação sem proxy na frente.
+CORA_PROXY_CONFIAVEL=
 
 # Tetos de execução, aplicados pela própria aplicação.
 CORA_MAX_MODEL_CALLS=10

@@ -12,7 +12,7 @@ import { ScriptedMotor } from '../engine/scripted.js'
 import { MotorError } from '../engine/port.js'
 import { criarMotorPorTurno, type AnthropicMessagesApi } from '../engine/anthropic-adapter.js'
 import { ArmazemDeSessoes } from '../auth/sessao.js'
-import { NOME_COOKIE_SESSAO } from '../auth/cookie.js'
+import { nomeCookieSessao } from '../auth/cookie.js'
 
 /** `Response.json()` tipa como `unknown` nesta configuração (sem lib DOM). Teste confia no formato. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,7 +47,7 @@ const corpoValido = {
 // suíte que não são sobre sessão em si usam este cookie fixo (token gerado por um
 // `gerarToken` injetado, sem aleatoriedade) para não misturar o que cada um prova.
 const TOKEN_SESSAO_PADRAO = 'SYNTH-token-sessao-conta-1'
-const COOKIE_SESSAO_PADRAO = `${NOME_COOKIE_SESSAO}=${TOKEN_SESSAO_PADRAO}`
+const COOKIE_SESSAO_PADRAO = `${nomeCookieSessao()}=${TOKEN_SESSAO_PADRAO}`
 
 /** `ArmazemDeSessoes` com uma sessão já criada para `idDaConta`, token fixo e previsível. */
 function armazemComSessao(idDaConta: string, token: string = TOKEN_SESSAO_PADRAO): ArmazemDeSessoes {
@@ -110,7 +110,7 @@ describe('POST /turno — sessão (Etapa 10 da Fase 4)', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: `${NOME_COOKIE_SESSAO}=SYNTH-token-nunca-emitido`,
+        Cookie: `${nomeCookieSessao()}=SYNTH-token-nunca-emitido`,
       },
       body: JSON.stringify(corpoValido),
     })
@@ -791,6 +791,49 @@ describe('Host configurável por ambiente (Etapa 11 da Fase 4)', () => {
       socket.on('error', rejectPromise)
     })
     expect(resposta).toContain('200')
+  })
+})
+
+describe('verificação de origem compara a origem inteira fora de dev (item 5 da revisão de segurança)', () => {
+  const HOST_DE_PRODUCAO = 'cora.medconsultoria.com.br'
+
+  async function postComHostEOrigin(origin: string) {
+    const { port } = await subirServidor({
+      ...motorFalso(),
+      hostsPermitidos: [...HOSTS_PERMITIDOS_PADRAO, HOST_DE_PRODUCAO],
+    })
+    const net = await import('node:net')
+    return new Promise<string>((resolvePromise, rejectPromise) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.write(
+          `POST /turno HTTP/1.1\r\nHost: ${HOST_DE_PRODUCAO}\r\nOrigin: ${origin}\r\n` +
+            'Content-Length: 0\r\nConnection: close\r\n\r\n',
+        )
+      })
+      let dados = ''
+      socket.on('data', (d) => (dados += d.toString()))
+      socket.on('end', () => resolvePromise(dados))
+      socket.on('error', rejectPromise)
+    })
+  }
+
+  it('Origin com porta diferente do Host (mesmo hostname) é recusada — não é só hostname', async () => {
+    const resposta = await postComHostEOrigin(`https://${HOST_DE_PRODUCAO}:9999`)
+    expect(resposta).toContain('400')
+    expect(resposta).toContain('host_nao_permitido')
+  })
+
+  it('Origin com esquema http (Host é servido em https) é recusada', async () => {
+    const resposta = await postComHostEOrigin(`http://${HOST_DE_PRODUCAO}`)
+    expect(resposta).toContain('400')
+    expect(resposta).toContain('host_nao_permitido')
+  })
+
+  it('Origin idêntica (https:// + Host exato) passa a verificação de origem', async () => {
+    const resposta = await postComHostEOrigin(`https://${HOST_DE_PRODUCAO}`)
+    // Passou a checagem de origem — o que sobra é a falta de sessão, não host_nao_permitido.
+    expect(resposta).toContain('401')
+    expect(resposta).toContain('sessao_ausente')
   })
 })
 

@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest'
 
-import { lerCookie, serializarCookieDeSaida, serializarCookieDeSessao } from './cookie.js'
+import { nomeCookieSessao, lerCookie, serializarCookieDeSaida, serializarCookieDeSessao } from './cookie.js'
+
+describe('nomeCookieSessao', () => {
+  it('usa o prefixo __Host- por padrão', () => {
+    expect(nomeCookieSessao()).toBe('__Host-cora_sessao')
+    expect(nomeCookieSessao(false)).toBe('__Host-cora_sessao')
+  })
+
+  it('em modo inseguro usa um nome SEM o prefixo __Host- (que exige Secure)', () => {
+    expect(nomeCookieSessao(true)).toBe('cora_sessao_dev')
+  })
+})
 
 describe('serializarCookieDeSessao', () => {
-  it('cookie de sessão sai com HttpOnly, Secure e SameSite=Lax', () => {
+  it('cookie de sessão sai com nome __Host-, HttpOnly, Secure e SameSite=Lax', () => {
     const cookie = serializarCookieDeSessao('token-abc', { maxIdadeSegundos: 3600 })
 
-    expect(cookie).toContain('cora_sessao=token-abc')
+    expect(cookie).toContain('__Host-cora_sessao=token-abc')
     expect(cookie).toContain('HttpOnly')
     expect(cookie).toContain('Secure')
     expect(cookie).toContain('SameSite=Lax')
@@ -14,23 +25,25 @@ describe('serializarCookieDeSessao', () => {
     expect(cookie).toContain('Max-Age=3600')
   })
 
-  it('perde só o Secure quando pedido explicitamente (CORA_COOKIE_INSEGURO)', () => {
+  it('perde o Secure E o prefixo __Host- quando pedido explicitamente (CORA_COOKIE_INSEGURO)', () => {
     const cookie = serializarCookieDeSessao('token-abc', {
       maxIdadeSegundos: 3600,
       inseguro: true,
     })
 
     expect(cookie).not.toContain('Secure')
+    expect(cookie).not.toContain('__Host-')
+    expect(cookie).toContain('cora_sessao_dev=token-abc')
     expect(cookie).toContain('HttpOnly')
     expect(cookie).toContain('SameSite=Lax')
   })
 })
 
 describe('serializarCookieDeSaida', () => {
-  it('expira o cookie com Max-Age=0 e mantém Secure por padrão', () => {
+  it('expira o cookie com Max-Age=0 e mantém Secure e o prefixo __Host- por padrão', () => {
     const cookie = serializarCookieDeSaida()
 
-    expect(cookie).toContain('cora_sessao=;')
+    expect(cookie).toContain('__Host-cora_sessao=;')
     expect(cookie).toContain('Max-Age=0')
     expect(cookie).toContain('Secure')
   })

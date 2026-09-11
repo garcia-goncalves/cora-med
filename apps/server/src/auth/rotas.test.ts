@@ -72,6 +72,7 @@ function montarDeps(overrides: Partial<DependenciasDeAuth> = {}): DependenciasHt
     contas: [contaSynth()],
     armazemDeSessoes,
     freio: overrides.freio ?? new FreioDeTentativas(),
+    freioPorEmail: overrides.freioPorEmail ?? new FreioDeTentativas({ limite: 20 }),
     portaDeHash,
     ...overrides,
   }
@@ -89,7 +90,7 @@ describe('POST /auth/entrar', () => {
 
     expect(resposta.status).toBe(200)
     const cookie = resposta.headers.get('set-cookie') ?? ''
-    expect(cookie).toContain('cora_sessao=')
+    expect(cookie).toContain('__Host-cora_sessao=')
     expect(cookie).toContain('HttpOnly')
     expect(cookie).toContain('Secure')
     expect(cookie).toContain('SameSite=Lax')
@@ -170,6 +171,114 @@ describe('POST /auth/entrar', () => {
     const resposta = await fetch(`${base}/auth/entrar`)
     expect(resposta.status).toBe(405)
     expect(resposta.headers.get('allow')).toBe('POST')
+  })
+
+  it('e-mail desconhecido não bloqueia por IP+e-mail nem por e-mail — só o IP puro conta (item 7)', async () => {
+    // Sem isto, um atacante mandando e-mails distintos faria os `Map`s de
+    // IP+e-mail e de e-mail crescerem sem limite. Prova indireta: 3 tentativas com
+    // e-mails DIFERENTES e limite 3 no freio de IP puro bloqueiam a 3ª — o mesmo
+    // resultado que dá com o e-mail repetido, porque quem conta aqui é só o IP.
+    const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+    const { base } = await subirServidor(montarDeps({ freio }))
+
+    for (const email of ['synth-x@teste.local', 'synth-y@teste.local']) {
+      await fetch(`${base}/auth/entrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha: 'SYNTH-qualquer' }),
+      })
+    }
+
+    const resposta = await fetch(`${base}/auth/entrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'synth-z@teste.local', senha: 'SYNTH-qualquer' }),
+    })
+
+    expect(resposta.status).toBe(429)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('bloqueado_por_tentativas')
+  })
+
+  it('terceiro contador (por e-mail, sem IP) bloqueia quem troca de IP a cada tentativa (item 2)', async () => {
+    const freioPorEmail = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+    // Limite alto nos outros dois, para provar que É o contador de e-mail sozinho que
+    // bloqueia — não o de IP+e-mail nem o de IP puro (cada requisição simula um IP novo
+    // via X-Forwarded-For não é preciso aqui: os outros dois ficam soltos por limite).
+    const freio = new FreioDeTentativas({ limite: 1000, now: () => new Date(0) })
+    const { base } = await subirServidor(montarDeps({ freio, freioPorEmail }))
+
+    for (let i = 0; i < 3; i += 1) {
+      await fetch(`${base}/auth/entrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: contaSynth().email, senha: 'SYNTH-senha-errada' }),
+      })
+    }
+
+    const resposta = await fetch(`${base}/auth/entrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: contaSynth().email, senha: SENHA_CERTA }),
+    })
+
+    expect(resposta.status).toBe(429)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('bloqueado_por_tentativas')
+  })
+})
+
+describe('IP atrás de proxy (CORA_PROXY_CONFIAVEL — item 1 da revisão de segurança)', () => {
+  it('sem proxyConfiavel, X-Forwarded-For é ignorado — o IP usado é sempre o do socket', async () => {
+    const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+    const { base } = await subirServidor(montarDeps({ freio }))
+
+    // Cada tentativa alega um X-Forwarded-For diferente — se fosse respeitado sem
+    // confiança no proxy, cada uma cairia num contador de IP diferente. Sem a variável,
+    // as três caem no MESMO contador (o do socket), e a quarta (mesmo com senha certa)
+    // é bloqueada.
+    for (const ipFalso of ['203.0.113.1', '203.0.113.2', '203.0.113.3']) {
+      await fetch(`${base}/auth/entrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ipFalso },
+        body: JSON.stringify({ email: contaSynth().email, senha: 'SYNTH-senha-errada' }),
+      })
+    }
+
+    const resposta = await fetch(`${base}/auth/entrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.9' },
+      body: JSON.stringify({ email: contaSynth().email, senha: SENHA_CERTA }),
+    })
+
+    expect(resposta.status).toBe(429)
+  })
+
+  it('com proxyConfiavel, o bloqueio segue o X-Forwarded-For — outro atacante (outro IP) não é afetado', async () => {
+    const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+    const { base } = await subirServidor(montarDeps({ freio, proxyConfiavel: true }))
+
+    for (let i = 0; i < 3; i += 1) {
+      await fetch(`${base}/auth/entrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.10' },
+        body: JSON.stringify({ email: contaSynth().email, senha: 'SYNTH-senha-errada' }),
+      })
+    }
+
+    const respostaDoAtacante = await fetch(`${base}/auth/entrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.10' },
+      body: JSON.stringify({ email: contaSynth().email, senha: SENHA_CERTA }),
+    })
+    expect(respostaDoAtacante.status).toBe(429)
+
+    // Outra pessoa real, atrás do mesmo proxy mas com IP encaminhado diferente, entra
+    // normalmente — o bloqueio do atacante não vazou para todo mundo (o defeito original).
+    const respostaDaPessoaReal = await fetch(`${base}/auth/entrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.77' },
+      body: JSON.stringify({ email: contaSynth().email, senha: SENHA_CERTA }),
+    })
+    expect(respostaDaPessoaReal.status).toBe(200)
   })
 })
 

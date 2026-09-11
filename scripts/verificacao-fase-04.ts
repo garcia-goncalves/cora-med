@@ -28,8 +28,8 @@ import { fixtures } from '@cora/contracts'
 import { WorkspaceClient } from '@cora/workspace-client'
 
 import type { ContaConfigurada } from '../apps/server/src/auth/contas.js'
-import { NOME_COOKIE_SESSAO } from '../apps/server/src/auth/cookie.js'
-import { FreioDeTentativas, LIMITE_DE_FALHAS } from '../apps/server/src/auth/freio.js'
+import { nomeCookieSessao } from '../apps/server/src/auth/cookie.js'
+import { FreioDeTentativas, LIMITE_DE_FALHAS, LIMITE_DE_FALHAS_POR_EMAIL } from '../apps/server/src/auth/freio.js'
 import { criarHashArgon2id } from '../apps/server/src/auth/senha.js'
 import { ArmazemDeSessoes } from '../apps/server/src/auth/sessao.js'
 import { ScriptedMotor } from '../apps/server/src/engine/scripted.js'
@@ -196,6 +196,7 @@ async function main(): Promise<void> {
 
   const armazemDeSessoes = new ArmazemDeSessoes({ now: () => AGORA })
   const freio = new FreioDeTentativas({ now: () => AGORA })
+  const freioPorEmail = new FreioDeTentativas({ now: () => AGORA, limite: LIMITE_DE_FALHAS_POR_EMAIL })
   const portaDeHash = criarHashArgon2id()
 
   const raizEstatica = await prepararRaizEstatica()
@@ -205,7 +206,7 @@ async function main(): Promise<void> {
     armazemDeSessoes,
     criarMotor: criarMotorComFerramenta,
     gerarRunId: () => `SYNTH-run-${randomBytes(4).toString('hex')}`,
-    auth: { contas, armazemDeSessoes, freio, portaDeHash },
+    auth: { contas, armazemDeSessoes, freio, freioPorEmail, portaDeHash },
     raizEstatica: raizEstatica.caminho,
   }
 
@@ -292,11 +293,18 @@ async function main(): Promise<void> {
       async () => {
         const armazemIsolado = new ArmazemDeSessoes({ now: () => AGORA })
         const freioIsolado = new FreioDeTentativas({ now: () => AGORA })
+        const freioPorEmailIsolado = new FreioDeTentativas({ now: () => AGORA, limite: LIMITE_DE_FALHAS_POR_EMAIL })
         const depsIsolado: DependenciasHttp = {
           registryDaConta: () => undefined,
           armazemDeSessoes: armazemIsolado,
           criarMotor: () => new ScriptedMotor([]),
-          auth: { contas, armazemDeSessoes: armazemIsolado, freio: freioIsolado, portaDeHash },
+          auth: {
+            contas,
+            armazemDeSessoes: armazemIsolado,
+            freio: freioIsolado,
+            freioPorEmail: freioPorEmailIsolado,
+            portaDeHash,
+          },
         }
         const { base: baseIsolada } = await subir(depsIsolado)
         const categorias: string[] = []
@@ -383,7 +391,7 @@ async function main(): Promise<void> {
       const { base: baseExpira } = await subir(depsExpira)
       const r = await fetch(`${baseExpira}/turno`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: `${NOME_COOKIE_SESSAO}=${token}` },
+        headers: { 'Content-Type': 'application/json', Cookie: `${nomeCookieSessao()}=${token}` },
         body: JSON.stringify({ mensagem: 'SYNTH-oi', deviceId: null }),
       })
       const corpo = (await r.json()) as { erro?: { categoria?: string } }
@@ -402,7 +410,7 @@ async function main(): Promise<void> {
       const alterado = valorOriginal.slice(0, -1) + (ultimo === 'a' ? 'b' : 'a')
       const r = await fetch(`${base}/turno`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: `${NOME_COOKIE_SESSAO}=${alterado}` },
+        headers: { 'Content-Type': 'application/json', Cookie: `${nomeCookieSessao()}=${alterado}` },
         body: JSON.stringify({ mensagem: 'SYNTH-oi', deviceId: null }),
       })
       const corpo = (await r.json()) as { erro?: { categoria?: string } }

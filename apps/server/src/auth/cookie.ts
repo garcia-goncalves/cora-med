@@ -2,9 +2,22 @@
  * Serialização do cookie de sessão. `HttpOnly` e `SameSite=Lax` sempre presentes — não são
  * opção. `Secure` é o padrão e só cai por decisão explícita (decisão D4 do plano da Fase 4):
  * ausência de opção significa `Secure` ligado, nunca o contrário.
+ *
+ * Nome do cookie: `__Host-cora_sessao` por padrão. O prefixo `__Host-` (RFC exige `Secure`,
+ * `Path=/` e proíbe `Domain`) é o que impede outro projeto no mesmo domínio raiz
+ * `medconsultoria.com.br`, fora do controle deste repositório, de gravar um cookie de
+ * mesmo nome com `Domain` mais amplo e ser aceito antes do legítimo. `CORA_COOKIE_INSEGURO`
+ * remove `Secure`, o que quebraria a regra do prefixo — nesse modo o nome muda para
+ * `cora_sessao_dev`, sem prefixo, documentado como uso só local.
  */
 
-export const NOME_COOKIE_SESSAO = 'cora_sessao'
+export const NOME_COOKIE_SESSAO_SEGURO = '__Host-cora_sessao'
+export const NOME_COOKIE_SESSAO_INSEGURO = 'cora_sessao_dev'
+
+/** Nome do cookie de sessão a usar, conforme `CORA_COOKIE_INSEGURO`. */
+export function nomeCookieSessao(inseguro?: boolean): string {
+  return inseguro ? NOME_COOKIE_SESSAO_INSEGURO : NOME_COOKIE_SESSAO_SEGURO
+}
 
 export interface OpcoesDeCookieDeSessao {
   /** Segundos até expirar, coerente com o TTL da sessão. */
@@ -21,14 +34,14 @@ function atributosComuns(opcoes?: { inseguro?: boolean }): string {
 
 export function serializarCookieDeSessao(token: string, opcoes: OpcoesDeCookieDeSessao): string {
   return [
-    `${NOME_COOKIE_SESSAO}=${token}`,
+    `${nomeCookieSessao(opcoes.inseguro)}=${token}`,
     atributosComuns(opcoes),
     `Max-Age=${opcoes.maxIdadeSegundos}`,
   ].join('; ')
 }
 
 export function serializarCookieDeSaida(opcoes?: { inseguro?: boolean }): string {
-  return [`${NOME_COOKIE_SESSAO}=`, atributosComuns(opcoes), 'Max-Age=0'].join('; ')
+  return [`${nomeCookieSessao(opcoes?.inseguro)}=`, atributosComuns(opcoes), 'Max-Age=0'].join('; ')
 }
 
 /**

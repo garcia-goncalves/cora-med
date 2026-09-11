@@ -17,8 +17,8 @@ import type { MotorPort } from '../engine/port.js'
 import { carregarContas, type ContaConfigurada } from '../auth/contas.js'
 import { criarHashArgon2id } from '../auth/senha.js'
 import { ArmazemDeSessoes } from '../auth/sessao.js'
-import { FreioDeTentativas } from '../auth/freio.js'
-import { enderecoDeEscuta, hostsPermitidos, montarRegistryPorConta, porta } from './boot.js'
+import { FreioDeTentativas, LIMITE_DE_FALHAS_POR_EMAIL } from '../auth/freio.js'
+import { conferirCookieInseguro, enderecoDeEscuta, hostsPermitidos, montarRegistryPorConta, porta } from './boot.js'
 import { criarServidorHttp } from './server.js'
 
 function exigir(nome: string): string {
@@ -61,6 +61,8 @@ function main(): void {
   const serviceSecret = exigir('WORKSPACE_AGENT_SECRET')
   const criarMotor = escolherCriadorDeMotor()
 
+  const cookieInseguro = process.env.CORA_COOKIE_INSEGURO === '1'
+
   let portaEscolhida: number
   let hostsPermitidosEscolhidos: string[]
   let enderecoDeEscutaEscolhido: string
@@ -68,6 +70,7 @@ function main(): void {
     portaEscolhida = porta()
     hostsPermitidosEscolhidos = hostsPermitidos()
     enderecoDeEscutaEscolhido = enderecoDeEscuta()
+    conferirCookieInseguro(cookieInseguro, hostsPermitidosEscolhidos)
   } catch (cause) {
     console.error(cause instanceof Error ? cause.message : String(cause))
     process.exit(2)
@@ -113,8 +116,13 @@ function main(): void {
       contas,
       armazemDeSessoes,
       freio: new FreioDeTentativas(),
+      freioPorEmail: new FreioDeTentativas({ limite: LIMITE_DE_FALHAS_POR_EMAIL }),
       portaDeHash: criarHashArgon2id(),
-      cookieInseguro: process.env.CORA_COOKIE_INSEGURO === '1',
+      cookieInseguro,
+      // "1" só quando o processo roda atrás de um proxy reverso confiável (publicação na
+      // TineHost — `docs/publicacao/tinehost.md`). Sem a variável, `req.socket.remoteAddress`
+      // continua sendo a fonte do IP, como sempre.
+      proxyConfiavel: process.env.CORA_PROXY_CONFIAVEL === '1',
     },
   })
 

@@ -3,7 +3,14 @@ import { WorkspaceClient } from '@cora/workspace-client'
 import type { ContaConfigurada } from '../auth/contas.js'
 import { montarFerramentas } from '../engine/tool-schemas.js'
 import { ArmazemDePrevias } from '../tools/workspace-create-task.js'
-import { enderecoDeEscuta, hostsPermitidos, montarRegistry, montarRegistryPorConta, porta } from './boot.js'
+import {
+  conferirCookieInseguro,
+  enderecoDeEscuta,
+  hostsPermitidos,
+  montarRegistry,
+  montarRegistryPorConta,
+  porta,
+} from './boot.js'
 
 function clienteFalso(): WorkspaceClient {
   return new WorkspaceClient({
@@ -165,5 +172,23 @@ describe('enderecoDeEscuta', () => {
     vi.stubEnv('CORA_BIND', '0.0.0.0 extra')
     expect(() => enderecoDeEscuta()).toThrow()
     vi.unstubAllEnvs()
+  })
+})
+
+describe('conferirCookieInseguro (item 3 da revisão de segurança da Fase 4)', () => {
+  it('cookieInseguro desligado nunca lança, mesmo com host de produção na lista', () => {
+    expect(() =>
+      conferirCookieInseguro(false, ['127.0.0.1', 'localhost', 'cora.medconsultoria.com.br']),
+    ).not.toThrow()
+  })
+
+  it('cookieInseguro ligado com só os hosts padrão não lança — ainda parece dev', () => {
+    expect(() => conferirCookieInseguro(true, ['127.0.0.1', 'localhost', '[::1]', '::1'])).not.toThrow()
+  })
+
+  it('cookieInseguro ligado COM host além dos padrões recusa subir, nomeando as duas variáveis', () => {
+    expect(() =>
+      conferirCookieInseguro(true, ['127.0.0.1', 'localhost', 'cora.medconsultoria.com.br']),
+    ).toThrow(/CORA_COOKIE_INSEGURO.*CORA_HOSTS_PERMITIDOS/)
   })
 })
