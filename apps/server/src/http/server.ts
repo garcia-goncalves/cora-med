@@ -7,7 +7,7 @@ import type { MotorPort } from '../engine/port.js'
 import { runTurn, DEFAULT_LIMITS, type TurnLimits } from '../run/turn.js'
 import type { ToolRegistry } from '../tools/registry.js'
 import { type DependenciasDeAuth, tratarEntrar, tratarSair, tratarSessao } from '../auth/rotas.js'
-import { NOME_COOKIE_SESSAO, lerCookie } from '../auth/cookie.js'
+import { lerCookie, nomeCookieSessao } from '../auth/cookie.js'
 import type { ArmazemDeSessoes } from '../auth/sessao.js'
 import { PedidoDeTurnoSchema, montarRequester } from './contrato.js'
 import { descreverParaLog, erroDeCategoria, traduzirFalha, type RespostaDeErro } from './erros.js'
@@ -131,7 +131,7 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
     // A identidade de quem fala vem SEMPRE da sessão, nunca do corpo — checado antes de
     // ler ou validar o corpo, para que um pedido sem sessão nunca chegue a gastar tempo
     // com Zod nem com o motor.
-    const token = lerCookie(req.headers.cookie, NOME_COOKIE_SESSAO)
+    const token = lerCookie(req.headers.cookie, nomeCookieSessao(deps.auth?.cookieInseguro))
     if (!token) {
       enviarErro(res, erroDeCategoria('sessao_ausente'))
       return
@@ -251,6 +251,31 @@ function hostnameDoCabecalho(hostHeader: string | undefined): string {
   return doisPontos === -1 ? hostHeader : hostHeader.slice(0, doisPontos)
 }
 
+/** Hosts de desenvolvimento local — únicos onde a comparação de origem ignora esquema e
+ * porta (ver comentário de `origemBate` abaixo). */
+const HOSTS_DEV_SEM_PORTA_EXATA = ['127.0.0.1', 'localhost', '[::1]', '::1']
+
+/**
+ * Confere o cabeçalho `Origin` contra o `Host` da requisição. Fora dos hosts de
+ * desenvolvimento local, exige igualdade EXATA com `https://<Host>` — esquema e porta
+ * incluídos, não só o hostname. Comparar só hostname (comportamento antigo) abria uma
+ * brecha de CSRF: uma origem com porta ou esquema diferente no mesmo host passava.
+ * Em `localhost`/`127.0.0.1` a comparação continua só por hostname — exceção de
+ * desenvolvimento, documentada, porque o ambiente local varia porta livremente.
+ */
+function origemBate(origemHeader: string, hostname: string, hostHeader: string): boolean {
+  let origemUrl: URL
+  try {
+    origemUrl = new URL(origemHeader)
+  } catch {
+    return false
+  }
+  if (HOSTS_DEV_SEM_PORTA_EXATA.includes(hostname)) {
+    return origemUrl.hostname === hostname
+  }
+  return origemHeader === `https://${hostHeader}`
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: DependenciasHttp): Promise<void> {
   // Nada do que este processo serve é indexável — nem a SPA, nem `/health`, nem `/turno`
   // (`estrategia_de_aquisicao`, item 1). Um lugar só, antes de qualquer roteamento, para
@@ -273,18 +298,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: De
     // como o teste e o `curl`, não manda esse cabeçalho.
     if (metodo === 'POST') {
       const origem = req.headers.origin
-      if (origem) {
-        let hostnameDaOrigem: string
-        try {
-          hostnameDaOrigem = new URL(origem).hostname
-        } catch {
-          enviarErro(res, erroDeCategoria('host_nao_permitido'))
-          return
-        }
-        if (hostnameDaOrigem !== hostname) {
-          enviarErro(res, erroDeCategoria('host_nao_permitido'))
-          return
-        }
+      if (origem && !origemBate(origem, hostname, req.headers.host ?? '')) {
+        enviarErro(res, erroDeCategoria('host_nao_permitido'))
+        return
       }
     }
 

@@ -81,6 +81,26 @@ export function hostsPermitidos(): string[] {
 }
 
 /**
+ * Recusa subir com `CORA_COOKIE_INSEGURO=1` (derruba o `Secure` do cookie de sessão) ao
+ * mesmo tempo que `CORA_HOSTS_PERMITIDOS` tem algum host além dos padrões locais
+ * (`127.0.0.1`, `localhost`, `[::1]`, `::1`) — essa combinação é o sinal de que o
+ * processo pensa que está publicado (item 3 da revisão de segurança da Fase 4). Copiar
+ * sem querer um `.env` de desenvolvimento para a TineHost faria a sessão viajar sem
+ * criptografia; melhor recusar subir nomeando as duas variáveis do que expor cookie.
+ */
+export function conferirCookieInseguro(cookieInseguro: boolean, hostsPermitidosEscolhidos: readonly string[]): void {
+  if (!cookieInseguro) return
+  const hostExtra = hostsPermitidosEscolhidos.find((host) => !HOSTS_PERMITIDOS_PADRAO.includes(host))
+  if (hostExtra) {
+    throw new Error(
+      `CORA_COOKIE_INSEGURO=1 com CORA_HOSTS_PERMITIDOS incluindo "${hostExtra}" (host além ` +
+        'dos padrões locais) parece produção — cookie sem Secure não pode ir para lá. Remova ' +
+        'CORA_COOKIE_INSEGURO ou tire o host extra de CORA_HOSTS_PERMITIDOS.',
+    )
+  }
+}
+
+/**
  * Endereço em que o processo escuta (Etapa 11 da Fase 4). Padrão `127.0.0.1` — só local.
  * `CORA_BIND` existe para permitir, por decisão explícita de quem sobe o processo (ex.:
  * publicação atrás de proxy), escutar em outra interface. Espaço no meio do valor não é

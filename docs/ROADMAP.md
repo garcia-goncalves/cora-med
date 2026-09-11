@@ -272,8 +272,12 @@ nada.
 
 Login de usuário humano (`apps/server/src/auth/`), SPA React em `apps/web` (login,
 chat, menu de conta, PWA instalável) e janela Tauri em `apps/desktop`. Detalhe completo
-em `docs/ARCHITECTURE.md`, seção "Fase 4". `pnpm run test` sobe para 532 testes em 36
-arquivos, ainda sem rede; `pnpm run typecheck` limpo.
+em `docs/ARCHITECTURE.md`, seção "Fase 4". `pnpm run test` sobe para 548 testes em 36
+arquivos, ainda sem rede; `pnpm run typecheck` limpo. Contagem inclui a revisão de
+segurança pós-entrega (proxy confiável para o IP do freio, terceiro contador por
+e-mail, checagem atômica do freio, cookie `__Host-`, verificação de origem completa e
+limpeza de sessão expirada — `apps/server/src/auth/rotas.ts`, `freio.ts`, `cookie.ts`,
+`sessao.ts` e `apps/server/src/http/server.ts`/`boot.ts`/`main.ts`).
 
 **O que foi comprovado:** a suíte local inteira, o `typecheck`, e o servidor subindo de
 verdade com as duas contas configuradas e o fluxo `POST /auth/entrar` → cookie →

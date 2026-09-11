@@ -84,4 +84,24 @@ describe('ArmazemDeSessoes', () => {
 
     expect(primeira.token).not.toBe(segunda.token)
   })
+
+  it('criar() varre e remove sessão expirada de antes — o Map não cresce para sempre', () => {
+    let agora = new Date('2026-01-01T10:00:00.000Z')
+    let contadorDeTokens = 0
+    const armazem = new ArmazemDeSessoes({
+      now: () => agora,
+      ttlMs: UM_MINUTO_MS,
+      gerarToken: () => {
+        contadorDeTokens += 1
+        return `SYNTH-token-${contadorDeTokens}`
+      },
+    })
+
+    const primeira = armazem.criar('conta-1')
+    agora = new Date('2026-01-01T10:02:00.000Z') // passou o TTL da primeira
+    armazem.criar('conta-2') // dispara a varredura
+
+    // A sessão expirada foi removida de verdade do Map, não só recusada na leitura.
+    expect(armazem.validar(primeira.token).estado).toBe('inexistente')
+  })
 })

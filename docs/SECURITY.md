@@ -128,7 +128,15 @@ Primeira porta de rede da Cora: `apps/server/src/http`, hoje cinco endpoints
 
 **Autenticação de usuário humano existe desde a Fase 4** (`apps/server/src/auth/`):
 `POST /auth/entrar`, `POST /auth/sair` e `GET /auth/sessao`, mais sessão opaca em
-cookie `HttpOnly`/`Secure`/`SameSite=Lax` e freio de tentativas por IP+e-mail e por IP.
+cookie `__Host-cora_sessao` (`HttpOnly`/`Secure`/`SameSite=Lax`; o prefixo `__Host-`
+impede que outro projeto no mesmo domínio raiz grave um cookie de mesmo nome com
+`Domain` mais amplo e seja aceito antes do legítimo) e freio de tentativas com TRÊS
+contadores: IP+e-mail, IP sozinho e e-mail sozinho (mais largo, para quem troca de IP a
+cada tentativa) — os dois primeiros só existem para e-mail de conta conhecida, para o
+`Map` não crescer sem limite com e-mails inventados. Atrás de proxy reverso
+(publicação — `docs/publicacao/tinehost.md`), `CORA_PROXY_CONFIAVEL=1` faz o IP vir de
+`X-Forwarded-For`; sem a variável, todo pedido atrás de proxy chegaria com o mesmo
+endereço e um atacante bloquearia as duas contas reais com 5 requisições.
 `POST /turno` **exige** essa sessão — sem cookie válido, `401 sessao_ausente` ou
 `sessao_expirada`, e nunca chega a chamar o motor. O corpo de `POST /turno` nem aceita
 mais `requester.requesterUserId` — o schema Zod (`.strict()`) só reconhece `mensagem` e

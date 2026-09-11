@@ -51,6 +51,7 @@ export class ArmazemDeSessoes {
   }
 
   criar(idDaConta: string): { token: string; sessao: SessaoDeConta } {
+    this.limparExpiradas()
     const token = this.gerarToken()
     const criadaEm = this.now()
     const sessao: SessaoDeConta = {
@@ -60,6 +61,16 @@ export class ArmazemDeSessoes {
     }
     this.sessoes.set(token, sessao)
     return { token, sessao }
+  }
+
+  /** Varredura simples: remove do `Map` toda sessão cujo `expiraEm` já passou. Chamada em
+   * `criar()` — sem isso, o `Map` só cresce, e nunca há um momento natural em que um
+   * token expirado precise sumir sozinho (ele já é recusado por `validar()`). */
+  private limparExpiradas(): void {
+    const agora = this.now().getTime()
+    for (const [token, sessao] of this.sessoes) {
+      if (agora >= sessao.expiraEm.getTime()) this.sessoes.delete(token)
+    }
   }
 
   /** A fronteira é fechada: expirar EXATAMENTE no instante do TTL já conta como expirada.

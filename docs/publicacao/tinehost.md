@@ -125,7 +125,16 @@ Ordem prática:
    valor sem necessidade confirmada.
 
 6. `CORA_COOKIE_INSEGURO` **nunca** entra em produção (o padrão, sem a variável, já é
-   `Secure` ligado — correto para HTTPS).
+   `Secure` ligado — correto para HTTPS). Se entrar por engano, o processo nem sobe:
+   ele recusa com `CORA_HOSTS_PERMITIDOS` já tendo o subdomínio do passo 3.
+
+7. **Ligar `CORA_PROXY_CONFIAVEL=1` é obrigatório nesta publicação.** O proxy reverso
+   do DirectAdmin fica entre o navegador e o processo Node — sem esta variável, todo
+   pedido chega ao Node com o MESMO endereço (o do proxy), e o freio de tentativas de
+   login (`docs/OPERATIONS.md`) bloquearia as duas contas reais com 5 requisições de
+   qualquer atacante, renovando o bloqueio para sempre (`limpar()` só roda em login
+   bem-sucedido, que não consegue mais acontecer). Com a variável ligada, o IP de quem
+   fez a requisição vem de `X-Forwarded-For`, que o DirectAdmin sempre sobrescreve.
 
 ## 6. Instalar, iniciar, conferir
 

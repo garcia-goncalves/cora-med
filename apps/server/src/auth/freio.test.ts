@@ -49,6 +49,36 @@ describe('FreioDeTentativas', () => {
     expect(freio.estaBloqueado('SYNTH-chave')).toBe(false)
   })
 
+  it('tentarRegistrar incrementa e devolve se já excede o limite, num só passo', () => {
+    const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 1ª
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 2ª
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(true) // 3ª atinge o limite
+  })
+
+  it('tentarRegistrar fecha a corrida entre checar e registrar (item 6): duas chamadas concorrentes já contam as duas antes de qualquer decisão', () => {
+    const freio = new FreioDeTentativas({ limite: 2, now: () => new Date(0) })
+
+    // Simula duas requisições "paralelas" chegando com a mesma chave: com a checagem e o
+    // registro separados (código antigo), as duas passariam pela checagem antes de
+    // qualquer uma registrar. Com a operação atômica, a segunda já vê o efeito da primeira.
+    const primeira = freio.tentarRegistrar('SYNTH-chave')
+    const segunda = freio.tentarRegistrar('SYNTH-chave')
+
+    expect(primeira).toBe(false)
+    expect(segunda).toBe(true)
+  })
+
+  it('login bem-sucedido desfaz o incremento de tentarRegistrar via limpar()', () => {
+    const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+    freio.tentarRegistrar('SYNTH-chave')
+    freio.tentarRegistrar('SYNTH-chave')
+    freio.limpar('SYNTH-chave')
+
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false)
+  })
+
   it('o bloqueio por IP puro acontece mesmo variando o e-mail', () => {
     // rotas.ts (Etapa 9) chama registrarFalha duas vezes por tentativa: uma com a chave
     // "ip+e-mail", outra só com "ip". Aqui simulamos só o segundo uso: mesmo IP, e-mails
