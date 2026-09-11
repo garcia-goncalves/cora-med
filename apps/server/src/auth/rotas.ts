@@ -70,19 +70,25 @@ async function lerCorpo(req: IncomingMessage): Promise<string> {
 }
 
 /**
- * Primeiro endereço de uma lista `X-Forwarded-For` (`cliente, proxy1, proxy2, ...`).
- * Cabeçalho ausente ou vazio devolve `undefined` — quem chama cai de volta no socket.
+ * ÚLTIMO endereço de uma lista `X-Forwarded-For` (`cliente, proxy1, proxy2, ...`) — nunca o
+ * primeiro. O cliente escreve livremente o início da lista (`X-Forwarded-For: 1.2.3.4`
+ * forjado); o elemento mais à direita é o que o proxy IMEDIATO acrescenta, porque o nginx
+ * do DirectAdmin usa `$proxy_add_x_forwarded_for` (acrescenta, não sobrescreve) — ler o
+ * primeiro reabriria exatamente o auto-DoS/bypass de freio que esta variável existe para
+ * fechar. Cabeçalho ausente ou vazio devolve `undefined` — quem chama cai de volta no
+ * socket.
  */
-function primeiroIpEncaminhado(cabecalho: string | string[] | undefined): string | undefined {
-  const valor = Array.isArray(cabecalho) ? cabecalho[0] : cabecalho
+function ultimoIpEncaminhado(cabecalho: string | string[] | undefined): string | undefined {
+  const valor = Array.isArray(cabecalho) ? cabecalho[cabecalho.length - 1] : cabecalho
   if (!valor) return undefined
-  const primeiro = valor.split(',')[0]?.trim()
-  return primeiro || undefined
+  const partes = valor.split(',')
+  const ultimo = partes[partes.length - 1]?.trim()
+  return ultimo || undefined
 }
 
 function ipDaRequisicao(req: IncomingMessage, proxyConfiavel?: boolean): string {
   if (proxyConfiavel) {
-    const encaminhado = primeiroIpEncaminhado(req.headers['x-forwarded-for'])
+    const encaminhado = ultimoIpEncaminhado(req.headers['x-forwarded-for'])
     if (encaminhado) return encaminhado
   }
   return req.socket.remoteAddress ?? 'desconhecido'

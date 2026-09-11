@@ -281,6 +281,36 @@ describe('IP atrás de proxy (CORA_PROXY_CONFIAVEL — item 1 da revisão de seg
     })
     expect(respostaDaPessoaReal.status).toBe(200)
   })
+
+  it('com proxyConfiavel, usa o ÚLTIMO endereço de X-Forwarded-For, nunca o primeiro (o cliente forja o início da lista)', async () => {
+    const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
+    const { base } = await subirServidor(montarDeps({ freio, proxyConfiavel: true }))
+
+    // O atacante manda um X-Forwarded-For DIFERENTE em cada tentativa (a parte que ele
+    // controla), mas o proxy imediato (nginx do DirectAdmin, `$proxy_add_x_forwarded_for`)
+    // ACRESCENTA o IP real dele no fim da lista — sempre o mesmo, porque é sempre a mesma
+    // máquina atacando. Se a Cora lesse o primeiro elemento (o forjado), nunca bloquearia.
+    for (let i = 0; i < 3; i += 1) {
+      await fetch(`${base}/auth/entrar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Forwarded-For': `1.2.3.${i}, 203.0.113.50`,
+        },
+        body: JSON.stringify({ email: contaSynth().email, senha: 'SYNTH-senha-errada' }),
+      })
+    }
+
+    const resposta = await fetch(`${base}/auth/entrar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': '9.9.9.9, 203.0.113.50',
+      },
+      body: JSON.stringify({ email: contaSynth().email, senha: SENHA_CERTA }),
+    })
+    expect(resposta.status).toBe(429)
+  })
 })
 
 describe('GET /auth/sessao', () => {

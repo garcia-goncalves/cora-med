@@ -18,10 +18,11 @@
  *   quem troca de IP a cada tentativa para contornar os dois primeiros. Mesma disciplina
  *   de e-mail conhecido — desconhecido não cria chave.
  *
- * Estado em `Map`, memória de processo (decisão D3 do plano). Não precisa de limpeza
- * agendada: a janela é verificada na leitura, e o `Map` fica limitado na prática — as
- * chaves de e-mail só existem para as duas contas conhecidas, e a de IP cresce só com o
- * tráfego real que chega ao processo.
+ * Estado em `Map`, memória de processo (decisão D3 do plano). As chaves de e-mail só
+ * existem para as duas contas conhecidas — limitadas por natureza. A chave de IP nasce
+ * para QUALQUER tentativa, de qualquer origem, sem autenticação — por isso `registrarFalha`
+ * poda entradas expiradas a cada chamada (`limparExpiradas`), em vez de confiar que o
+ * tráfego real mantém o `Map` pequeno.
  */
 
 /** Limite de falhas e duração da janela padrão do freio. */
@@ -62,9 +63,22 @@ export class FreioDeTentativas {
     this.janelaMs = opcoes.janelaMs ?? JANELA_MS
   }
 
+  /**
+   * Remove entradas cuja janela já passou. Chamado a cada `registrarFalha` — a chave de IP
+   * puro nasce para toda tentativa sintaticamente válida, de qualquer origem, sem
+   * autenticação (diferente das chaves de e-mail, que só existem para conta conhecida), e
+   * sem essa poda o `Map` cresceria sem limite com IPs forjados ou rotação de endereço.
+   */
+  private limparExpiradas(agora: number): void {
+    for (const [chave, contador] of this.contadores) {
+      if (agora - contador.desdeMs >= this.janelaMs) this.contadores.delete(chave)
+    }
+  }
+
   /** Registra uma tentativa que falhou para a chave dada. */
   registrarFalha(chave: string): void {
     const agora = this.now().getTime()
+    this.limparExpiradas(agora)
     const existente = this.contadores.get(chave)
     if (existente === undefined || agora - existente.desdeMs >= this.janelaMs) {
       this.contadores.set(chave, { falhas: 1, desdeMs: agora })
@@ -102,5 +116,10 @@ export class FreioDeTentativas {
   /** Chamado no login bem-sucedido: apaga o contador daquela chave. */
   limpar(chave: string): void {
     this.contadores.delete(chave)
+  }
+
+  /** Só para diagnóstico/teste — número de chaves vivas no `Map` agora. */
+  get tamanho(): number {
+    return this.contadores.size
   }
 }

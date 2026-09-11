@@ -26,6 +26,21 @@ describe('FreioDeTentativas', () => {
     expect(freio.estaBloqueado('SYNTH-chave')).toBe(true)
   })
 
+  it('poda chaves expiradas ao registrar uma falha nova — o Map não cresce sem limite', () => {
+    const r = relogio(0)
+    const freio = new FreioDeTentativas({ limite: 5, now: r.now, janelaMs: 1000 })
+
+    // Muitas chaves diferentes (simula IPs forjados/rotacionados) na mesma janela.
+    for (let i = 0; i < 50; i += 1) freio.registrarFalha(`SYNTH-ip-${i}`)
+    expect(freio.tamanho).toBe(50)
+
+    r.avancar(1001) // passa da janela: as 50 chaves antigas expiraram
+
+    // Uma falha nova qualquer dispara a poda — as 50 antigas somem, só a nova fica.
+    freio.registrarFalha('SYNTH-ip-nova')
+    expect(freio.tamanho).toBe(1)
+  })
+
   it('passada a janela, desbloqueia', () => {
     const r = relogio(0)
     const freio = new FreioDeTentativas({ limite: 5, janelaMs: 1000, now: r.now })
