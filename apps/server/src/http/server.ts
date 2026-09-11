@@ -5,6 +5,7 @@ import { CONTRACT_VERSION } from '@cora/contracts'
 import type { MotorPort } from '../engine/port.js'
 import { runTurn, DEFAULT_LIMITS, type TurnLimits } from '../run/turn.js'
 import type { ToolRegistry } from '../tools/registry.js'
+import { type DependenciasDeAuth, tratarEntrar, tratarSair, tratarSessao } from '../auth/rotas.js'
 import { PedidoDeTurnoSchema, montarRequester } from './contrato.js'
 import { descreverParaLog, erroDeCategoria, traduzirFalha, type RespostaDeErro } from './erros.js'
 
@@ -32,6 +33,12 @@ export interface DependenciasHttp {
    * falsa: o socket é local, mas a origem que consegue falar com ele não precisa ser.
    */
   hostsPermitidos?: readonly string[]
+  /**
+   * Ausente: `/auth/*` some do roteamento (404 `rota_desconhecida`), como os 20 testes
+   * existentes deste arquivo já esperam. Presente: entra `POST /auth/entrar`,
+   * `POST /auth/sair` e `GET /auth/sessao`.
+   */
+  auth?: DependenciasDeAuth
 }
 
 const HOSTS_PERMITIDOS_PADRAO = ['127.0.0.1', 'localhost', '[::1]', '::1']
@@ -192,6 +199,26 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: De
     const url = new URL(req.url ?? '/', 'http://localhost')
     const metodo = req.method ?? 'GET'
 
+    // Verificação de origem no POST (decisão 8 da spec da Fase 4) — a parte de CSRF que
+    // `SameSite=Lax` não cobre. `Origin` AUSENTE não é recusa: cliente não-navegador,
+    // como o teste e o `curl`, não manda esse cabeçalho.
+    if (metodo === 'POST') {
+      const origem = req.headers.origin
+      if (origem) {
+        let hostnameDaOrigem: string
+        try {
+          hostnameDaOrigem = new URL(origem).hostname
+        } catch {
+          enviarErro(res, erroDeCategoria('host_nao_permitido'))
+          return
+        }
+        if (hostnameDaOrigem !== hostname) {
+          enviarErro(res, erroDeCategoria('host_nao_permitido'))
+          return
+        }
+      }
+    }
+
     if (url.pathname === '/health') {
       if (metodo !== 'GET') {
         enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'GET' })
@@ -208,6 +235,35 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: De
       }
       await tratarTurno(req, res, deps)
       return
+    }
+
+    if (deps.auth) {
+      if (url.pathname === '/auth/entrar') {
+        if (metodo !== 'POST') {
+          enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'POST' })
+          return
+        }
+        await tratarEntrar(req, res, deps.auth)
+        return
+      }
+
+      if (url.pathname === '/auth/sair') {
+        if (metodo !== 'POST') {
+          enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'POST' })
+          return
+        }
+        tratarSair(req, res, deps.auth)
+        return
+      }
+
+      if (url.pathname === '/auth/sessao') {
+        if (metodo !== 'GET') {
+          enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'GET' })
+          return
+        }
+        tratarSessao(req, res, deps.auth)
+        return
+      }
     }
 
     enviarErro(res, erroDeCategoria('rota_desconhecida'))
