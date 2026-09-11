@@ -13,9 +13,9 @@ function fetchQueRejeita(): typeof fetch {
 }
 
 describe('criarClienteDaApi', () => {
-  it('sucesso: entrar devolve a sessão', async () => {
-    const sessao = { id: 'conta-1', nome: 'SYNTH-Thaís', email: 'thais@teste.local' }
-    const cliente = criarClienteDaApi({ fetchImpl: fetchQueResponde(200, sessao) })
+  it('sucesso: entrar devolve a sessão desembrulhada do envelope do servidor', async () => {
+    const sessao = { idDaConta: 'conta-1', nome: 'SYNTH-Thaís', email: 'thais@teste.local' }
+    const cliente = criarClienteDaApi({ fetchImpl: fetchQueResponde(200, { sessao }) })
 
     const resultado = await cliente.entrar('thais@teste.local', 'SYNTH-senha')
 
@@ -95,7 +95,7 @@ describe('criarClienteDaApi', () => {
   })
 
   it('usa caminhos relativos e envia credenciais (cookie)', async () => {
-    const fetchEspiao = fetchQueResponde(200, { id: 'conta-1', nome: 'x', email: 'x@x.local' })
+    const fetchEspiao = fetchQueResponde(200, { sessao: { idDaConta: 'conta-1', nome: 'x', email: 'x@x.local' } })
     const cliente = criarClienteDaApi({ fetchImpl: fetchEspiao })
 
     await cliente.obterSessao()

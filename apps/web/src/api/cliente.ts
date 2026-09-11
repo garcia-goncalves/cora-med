@@ -12,7 +12,7 @@
 
 /** O que a tela pode saber sobre quem está logado. */
 export interface SessaoDoUsuario {
-  id: string
+  idDaConta: string
   nome: string
   email: string
 }
@@ -91,10 +91,22 @@ export function criarClienteDaApi(opcoes: OpcoesDoClienteDaApi = {}): ClienteDaA
     return { status: await categoriaDoErro(resposta) }
   }
 
+  // O servidor devolve a sessão dentro de um envelope (`{ sessao: {...} }`), não solta —
+  // desembrulha aqui, no único lugar que conhece o formato de transporte.
+  async function chamarESairDoEnvelope(
+    caminho: string,
+    metodo: 'GET' | 'POST',
+    corpo?: unknown,
+  ): Promise<ResultadoDoCliente<SessaoDoUsuario>> {
+    const resultado = await chamar<{ sessao: SessaoDoUsuario }>(caminho, metodo, corpo)
+    if (resultado.status !== 'sucesso') return resultado
+    return { status: 'sucesso', dados: resultado.dados.sessao }
+  }
+
   return {
-    entrar: (email, senha) => chamar('/auth/entrar', 'POST', { email, senha }),
+    entrar: (email, senha) => chamarESairDoEnvelope('/auth/entrar', 'POST', { email, senha }),
     sair: () => chamar('/auth/sair', 'POST'),
-    obterSessao: () => chamar('/auth/sessao', 'GET'),
+    obterSessao: () => chamarESairDoEnvelope('/auth/sessao', 'GET'),
     enviarTurno: (mensagem, deviceId) => chamar('/turno', 'POST', { mensagem, deviceId }),
   }
 }

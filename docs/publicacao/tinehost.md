@@ -134,7 +134,12 @@ Ordem prática:
    login (`docs/OPERATIONS.md`) bloquearia as duas contas reais com 5 requisições de
    qualquer atacante, renovando o bloqueio para sempre (`limpar()` só roda em login
    bem-sucedido, que não consegue mais acontecer). Com a variável ligada, o IP de quem
-   fez a requisição vem de `X-Forwarded-For`, que o DirectAdmin sempre sobrescreve.
+   fez a requisição vem do **último** endereço de `X-Forwarded-For` — nunca o primeiro,
+   que qualquer cliente escreve livremente. O nginx por trás do DirectAdmin usa
+   `$proxy_add_x_forwarded_for` (**acrescenta** ao cabeçalho recebido, não sobrescreve);
+   o elemento mais à direita é sempre o que o proxy imediato gravou, o único que o
+   cliente não controla. Vale nos dois cenários possíveis — se algum dia o comportamento
+   mudar para sobrescrever, a lista passa a ter um elemento só e "último" continua certo.
 
 ## 6. Instalar, iniciar, conferir
 
