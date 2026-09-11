@@ -9,6 +9,13 @@
 | `vitest` | testes | MIT |
 | `tsx` | rodar TypeScript direto | MIT |
 | `@types/node` | tipos do Node | MIT |
+| `react` / `react-dom` | SPA da Cora (`apps/web`, Fase 4) | MIT |
+| `vite` | build e dev server da SPA (`apps/web`, Fase 4) | MIT |
+| `@tauri-apps/cli` / crate `tauri` | janela desktop do Windows (`apps/desktop`, Fase 4) | MIT OR Apache-2.0 (dupla licença — usamos como MIT) |
+| `@node-rs/argon2` | hash de senha de login (`apps/server/src/auth`, Fase 4) — binário nativo pré-compilado | MIT |
+| `@fontsource/montserrat` | fonte da marca embutida na SPA (`apps/web`, Fase 4) | **OFL-1.1** — licença de fonte, diferente do MIT do resto: exige preservar o nome da fonte em redistribuição, mas não exige atribuição visível na tela |
+| `sharp` | geração dos ícones do PWA em build time (`apps/web/scripts/gerar-icones.mjs`, Fase 4) | Apache-2.0 |
+| `esbuild` | bundle de produção do `@cora/server` num arquivo só (`apps/server/build.mjs`, Fase 4) | MIT |
 
 As licenças acima são as declaradas pelos projetos. Confirmar no `node_modules` antes de
 qualquer distribuição do produto — leitura de campo de metadado não substitui o arquivo
