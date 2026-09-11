@@ -1,8 +1,11 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import type { AddressInfo } from 'node:net'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CONTRACT_VERSION, type RequesterContext } from '@cora/contracts'
 import { WorkspaceApiError, WorkspaceClient } from '@cora/workspace-client'
-import { criarServidorHttp, type DependenciasHttp } from './server.js'
+import { criarServidorHttp, HOSTS_PERMITIDOS_PADRAO, type DependenciasHttp } from './server.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { createListTasksTool } from '../tools/workspace-tasks.js'
 import { ScriptedMotor } from '../engine/scripted.js'
@@ -664,6 +667,130 @@ describe('POST /turno — desconexão do cliente cancela o turno', () => {
     await vi.waitFor(() => {
       expect(signalVistoPeloHandler?.aborted).toBe(true)
     })
+  })
+})
+
+describe('SPA na mesma origem (Etapa 11 da Fase 4)', () => {
+  let raiz: string
+
+  beforeEach(async () => {
+    raiz = await mkdtemp(join(tmpdir(), 'cora-server-estaticos-'))
+    await writeFile(join(raiz, 'index.html'), 'SYNTH-index')
+    await mkdir(join(raiz, 'assets'))
+    await writeFile(join(raiz, 'assets', 'app.js'), 'SYNTH-js')
+  })
+
+  afterEach(async () => {
+    await rm(raiz, { recursive: true, force: true })
+  })
+
+  it('arquivo existente é servido com o tipo certo, usando o módulo de estáticos', async () => {
+    const { base } = await subirServidor({ ...motorFalso(), raizEstatica: raiz })
+    const resposta = await fetch(`${base}/assets/app.js`)
+    expect(resposta.status).toBe(200)
+    expect(resposta.headers.get('content-type')).toBe('text/javascript; charset=utf-8')
+    expect(await resposta.text()).toBe('SYNTH-js')
+  })
+
+  it('rota desconhecida sem extensão cai no index.html', async () => {
+    const { base } = await subirServidor({ ...motorFalso(), raizEstatica: raiz })
+    const resposta = await fetch(`${base}/conversa/qualquer-coisa`)
+    expect(resposta.status).toBe(200)
+    expect(resposta.headers.get('content-type')).toBe('text/html; charset=utf-8')
+    expect(await resposta.text()).toBe('SYNTH-index')
+  })
+
+  it('travessia de caminho é recusada — nunca escapa da raiz nem vaza pista', async () => {
+    // `new URL()` já normaliza `..` (literal ou `%2e%2e`) ANTES de chegar aqui — o mesmo
+    // "%2e%2e/%2e%2e/etc/passwd" da Etapa 8 vira só "/etc/passwd" no `url.pathname`, sem
+    // nunca acionar a defesa. Barra invertida percent-encoded (`%5c`) sobrevive a essa
+    // normalização como parte do mesmo segmento — é o caminho que de fato prova que
+    // `server.ts` usa `resolverArquivoEstatico` (Etapa 8) e não uma versão própria mais
+    // ingênua da mesma checagem.
+    const { base } = await subirServidor({ ...motorFalso(), raizEstatica: raiz })
+    const resposta = await fetch(`${base}/%2e%2e%5c%2e%2e%5cetc%5cpasswd`)
+    expect(resposta.status).toBe(404)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('rota_desconhecida')
+  })
+
+  it('sem raizEstatica configurada, o comportamento de 404 tipado permanece', async () => {
+    const { base } = await subirServidor(motorFalso())
+    const resposta = await fetch(`${base}/qualquer-coisa`)
+    expect(resposta.status).toBe(404)
+    expect((await jsonDe(resposta)).erro.categoria).toBe('rota_desconhecida')
+  })
+})
+
+describe('X-Robots-Tag — nada do que este processo serve é indexável (Etapa 11 da Fase 4)', () => {
+  it('presente em GET /health', async () => {
+    const { base } = await subirServidor(motorFalso())
+    const resposta = await fetch(`${base}/health`)
+    expect(resposta.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+  })
+
+  it('presente em POST /turno', async () => {
+    const { base } = await subirServidor(motorFalso())
+    const resposta = await fetch(`${base}/turno`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: COOKIE_SESSAO_PADRAO },
+      body: JSON.stringify(corpoValido),
+    })
+    expect(resposta.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+  })
+
+  it('presente no HTML servido pela SPA', async () => {
+    const raiz = await mkdtemp(join(tmpdir(), 'cora-server-robots-'))
+    try {
+      await writeFile(join(raiz, 'index.html'), 'SYNTH-index')
+      const { base } = await subirServidor({ ...motorFalso(), raizEstatica: raiz })
+      const resposta = await fetch(`${base}/`)
+      expect(resposta.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+    } finally {
+      await rm(raiz, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('Host configurável por ambiente (Etapa 11 da Fase 4)', () => {
+  it('host fora da lista padrão E fora da lista configurada continua 400 host_nao_permitido', async () => {
+    const { port } = await subirServidor({
+      ...motorFalso(),
+      hostsPermitidos: [...HOSTS_PERMITIDOS_PADRAO, 'cora.medconsultoria.com.br'],
+    })
+    const net = await import('node:net')
+    const resposta = await new Promise<string>((resolvePromise, rejectPromise) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.write(
+          `GET /health HTTP/1.1\r\nHost: dominio-do-atacante.tld:${port}\r\nConnection: close\r\n\r\n`,
+        )
+      })
+      let dados = ''
+      socket.on('data', (d) => (dados += d.toString()))
+      socket.on('end', () => resolvePromise(dados))
+      socket.on('error', rejectPromise)
+    })
+    expect(resposta).toContain('400')
+    expect(resposta).toContain('host_nao_permitido')
+  })
+
+  it('host acrescentado à lista (o que CORA_HOSTS_PERMITIDOS faria) é aceito', async () => {
+    const { port } = await subirServidor({
+      ...motorFalso(),
+      hostsPermitidos: [...HOSTS_PERMITIDOS_PADRAO, 'cora.medconsultoria.com.br'],
+    })
+    const net = await import('node:net')
+    const resposta = await new Promise<string>((resolvePromise, rejectPromise) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.write(
+          `GET /health HTTP/1.1\r\nHost: cora.medconsultoria.com.br:${port}\r\nConnection: close\r\n\r\n`,
+        )
+      })
+      let dados = ''
+      socket.on('data', (d) => (dados += d.toString()))
+      socket.on('end', () => resolvePromise(dados))
+      socket.on('error', rejectPromise)
+    })
+    expect(resposta).toContain('200')
   })
 })
 

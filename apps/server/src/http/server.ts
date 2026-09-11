@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { CONTRACT_VERSION } from '@cora/contracts'
 
@@ -10,6 +11,7 @@ import { NOME_COOKIE_SESSAO, lerCookie } from '../auth/cookie.js'
 import type { ArmazemDeSessoes } from '../auth/sessao.js'
 import { PedidoDeTurnoSchema, montarRequester } from './contrato.js'
 import { descreverParaLog, erroDeCategoria, traduzirFalha, type RespostaDeErro } from './erros.js'
+import { resolverArquivoEstatico, type ResultadoEstatico } from './estaticos.js'
 
 /** Teto do corpo de `POST /turno`. Sem isto, a primeira porta de rede desta casa é
  * derrubável com um único POST grande — antes de o motor ou o Zod verem qualquer coisa. */
@@ -50,9 +52,21 @@ export interface DependenciasHttp {
    * `POST /auth/sair` e `GET /auth/sessao`.
    */
   auth?: DependenciasDeAuth
+  /**
+   * Pasta com o build da SPA (Etapa 11 da Fase 4). Ausente: nenhuma rota estática existe,
+   * e qualquer caminho não reconhecido continua sendo `rota_desconhecida`, 404 tipado —
+   * o comportamento que os testes desta suíte já esperavam antes desta etapa. Presente:
+   * todo caminho que não bate com `/health`, `/turno` nem `/auth/*` passa por
+   * `resolverArquivoEstatico` (`estaticos.ts`), que decide entre servir o arquivo, cair
+   * no `index.html` (SPA) ou recusar.
+   */
+  raizEstatica?: string
 }
 
-const HOSTS_PERMITIDOS_PADRAO = ['127.0.0.1', 'localhost', '[::1]', '::1']
+/** Exportado para `boot.ts`: a lista configurável por `CORA_HOSTS_PERMITIDOS` (Etapa 11
+ * da Fase 4) sempre ACRESCENTA a esta lista, nunca a substitui — perder `localhost` ou
+ * `127.0.0.1` quebraria o desenvolvimento local. */
+export const HOSTS_PERMITIDOS_PADRAO = ['127.0.0.1', 'localhost', '[::1]', '::1']
 
 function enviar(res: ServerResponse, status: number, corpo: unknown): void {
   const texto = JSON.stringify(corpo)
@@ -86,6 +100,26 @@ async function lerCorpo(req: IncomingMessage): Promise<string> {
 }
 
 class CorpoGrandeDemaisError extends Error {}
+
+/** Transmite o arquivo já resolvido por `resolverArquivoEstatico`. Não usa `enviar()`
+ * (fixa `Content-Type: application/json`) nem carrega o arquivo inteiro em memória antes
+ * de escrever — `createReadStream` + `pipe` funciona igual para o HTML de alguns KB e
+ * para um asset maior, sem duplicar o conteúdo em memória. */
+async function enviarArquivoEstatico(
+  res: ServerResponse,
+  resultado: Extract<ResultadoEstatico, { estado: 'resolvido' }>,
+): Promise<void> {
+  res.writeHead(200, {
+    'Content-Type': resultado.tipoDeConteudo,
+    'Cache-Control': resultado.cacheControl,
+  })
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    const leitura = createReadStream(resultado.caminhoAbsoluto)
+    leitura.on('error', rejectPromise)
+    leitura.on('end', resolvePromise)
+    leitura.pipe(res)
+  })
+}
 
 async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: DependenciasHttp): Promise<void> {
   const registrar = deps.registrar ?? ((linha: string) => console.error(linha))
@@ -218,6 +252,11 @@ function hostnameDoCabecalho(hostHeader: string | undefined): string {
 }
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: DependenciasHttp): Promise<void> {
+  // Nada do que este processo serve é indexável — nem a SPA, nem `/health`, nem `/turno`
+  // (`estrategia_de_aquisicao`, item 1). Um lugar só, antes de qualquer roteamento, para
+  // que nenhuma resposta escape sem o cabeçalho.
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+
   try {
     const hostsPermitidos = deps.hostsPermitidos ?? HOSTS_PERMITIDOS_PADRAO
     const hostname = hostnameDoCabecalho(req.headers.host)
@@ -294,6 +333,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: De
         tratarSessao(req, res, deps.auth)
         return
       }
+    }
+
+    // Fallback estático: só chega aqui quando o caminho não é `/health`, `/turno` nem
+    // `/auth/*`. Sem `raizEstatica` configurada, comportamento inalterado — 404 tipado,
+    // como os testes existentes desta suíte já esperam.
+    if (deps.raizEstatica && metodo === 'GET') {
+      const resultado = await resolverArquivoEstatico(url.pathname, deps.raizEstatica)
+      if (resultado.estado === 'resolvido') {
+        await enviarArquivoEstatico(res, resultado)
+        return
+      }
+      // 'nao_encontrado' e 'recusado' (tentativa de travessia de caminho) saem os dois
+      // como 404 tipado — quem tentou `..` não recebe pista nenhuma de que a defesa foi
+      // essa e não outra.
+      enviarErro(res, erroDeCategoria('rota_desconhecida'))
+      return
     }
 
     enviarErro(res, erroDeCategoria('rota_desconhecida'))

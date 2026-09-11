@@ -18,7 +18,7 @@ import { carregarContas, type ContaConfigurada } from '../auth/contas.js'
 import { criarHashArgon2id } from '../auth/senha.js'
 import { ArmazemDeSessoes } from '../auth/sessao.js'
 import { FreioDeTentativas } from '../auth/freio.js'
-import { montarRegistryPorConta, porta } from './boot.js'
+import { enderecoDeEscuta, hostsPermitidos, montarRegistryPorConta, porta } from './boot.js'
 import { criarServidorHttp } from './server.js'
 
 function exigir(nome: string): string {
@@ -62,12 +62,20 @@ function main(): void {
   const criarMotor = escolherCriadorDeMotor()
 
   let portaEscolhida: number
+  let hostsPermitidosEscolhidos: string[]
+  let enderecoDeEscutaEscolhido: string
   try {
     portaEscolhida = porta()
+    hostsPermitidosEscolhidos = hostsPermitidos()
+    enderecoDeEscutaEscolhido = enderecoDeEscuta()
   } catch (cause) {
     console.error(cause instanceof Error ? cause.message : String(cause))
     process.exit(2)
   }
+
+  // Pasta do build da SPA (Etapa 11 da Fase 4). Ausente: o servidor continua só como
+  // API — sem raiz estática, `handleRequest` mantém o 404 tipado de sempre.
+  const raizEstatica = process.env.CORA_RAIZ_ESTATICA || undefined
 
   // As duas contas nomeadas, cada uma com seu próprio token de delegação — substitui a
   // antiga variável única `WORKSPACE_DELEGATION_TOKEN` (Etapa 7 e decisão D2 da Fase 4).
@@ -99,6 +107,8 @@ function main(): void {
     registryDaConta: (idDaConta) => registryPorConta.get(idDaConta),
     armazemDeSessoes,
     criarMotor,
+    hostsPermitidos: hostsPermitidosEscolhidos,
+    raizEstatica,
     auth: {
       contas,
       armazemDeSessoes,
@@ -108,13 +118,14 @@ function main(): void {
     },
   })
 
-  // 127.0.0.1 explícito, não 0.0.0.0: é a primeira porta de rede desta casa. A partir da
-  // Etapa 10 da Fase 4 há autenticação de usuário humano (cookie de sessão em
-  // `/auth/*` e `/turno`) — mas o bind continua local: expor a porta para fora da
-  // máquina é decisão de publicação, não deste processo.
-  server.listen(portaEscolhida, '127.0.0.1', () => {
+  // Padrão `127.0.0.1`, não `0.0.0.0`: continua sendo a primeira porta de rede desta
+  // casa. A partir da Etapa 10 da Fase 4 há autenticação de usuário humano (cookie de
+  // sessão em `/auth/*` e `/turno`); a partir desta etapa, `CORA_BIND` permite escutar em
+  // outra interface por decisão explícita de quem sobe o processo (ex.: atrás de um
+  // proxy em produção) — silêncio continua significando só local.
+  server.listen(portaEscolhida, enderecoDeEscutaEscolhido, () => {
     console.log(
-      `Cora escutando em http://127.0.0.1:${portaEscolhida} — GET /health, POST /turno`,
+      `Cora escutando em http://${enderecoDeEscutaEscolhido}:${portaEscolhida} — GET /health, POST /turno`,
     )
   })
 

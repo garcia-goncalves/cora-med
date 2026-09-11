@@ -3,7 +3,7 @@ import { WorkspaceClient } from '@cora/workspace-client'
 import type { ContaConfigurada } from '../auth/contas.js'
 import { montarFerramentas } from '../engine/tool-schemas.js'
 import { ArmazemDePrevias } from '../tools/workspace-create-task.js'
-import { montarRegistry, montarRegistryPorConta, porta } from './boot.js'
+import { enderecoDeEscuta, hostsPermitidos, montarRegistry, montarRegistryPorConta, porta } from './boot.js'
 
 function clienteFalso(): WorkspaceClient {
   return new WorkspaceClient({
@@ -105,6 +105,65 @@ describe('porta', () => {
   it('recusa porta acima de 65535', () => {
     vi.stubEnv('CORA_PORT', '70000')
     expect(() => porta()).toThrow()
+    vi.unstubAllEnvs()
+  })
+})
+
+describe('hostsPermitidos', () => {
+  it('usa só os padrões quando CORA_HOSTS_PERMITIDOS não está definida', () => {
+    vi.stubEnv('CORA_HOSTS_PERMITIDOS', '')
+    expect(hostsPermitidos()).toEqual(['127.0.0.1', 'localhost', '[::1]', '::1'])
+    vi.unstubAllEnvs()
+  })
+
+  it('acrescenta aos padrões, sem substituí-los', () => {
+    vi.stubEnv('CORA_HOSTS_PERMITIDOS', 'cora.medconsultoria.com.br')
+    expect(hostsPermitidos()).toEqual([
+      '127.0.0.1',
+      'localhost',
+      '[::1]',
+      '::1',
+      'cora.medconsultoria.com.br',
+    ])
+    vi.unstubAllEnvs()
+  })
+
+  it('aceita uma lista de vários hosts separados por vírgula, com espaço tolerado', () => {
+    vi.stubEnv('CORA_HOSTS_PERMITIDOS', 'a.exemplo.com, b.exemplo.com')
+    expect(hostsPermitidos()).toEqual([
+      '127.0.0.1',
+      'localhost',
+      '[::1]',
+      '::1',
+      'a.exemplo.com',
+      'b.exemplo.com',
+    ])
+    vi.unstubAllEnvs()
+  })
+
+  it('recusa host vazio (vírgula sobrando)', () => {
+    vi.stubEnv('CORA_HOSTS_PERMITIDOS', 'a.exemplo.com,,b.exemplo.com')
+    expect(() => hostsPermitidos()).toThrow()
+    vi.unstubAllEnvs()
+  })
+})
+
+describe('enderecoDeEscuta', () => {
+  it('usa 127.0.0.1 como padrão quando CORA_BIND não está definida', () => {
+    vi.stubEnv('CORA_BIND', '')
+    expect(enderecoDeEscuta()).toBe('127.0.0.1')
+    vi.unstubAllEnvs()
+  })
+
+  it('aceita um endereço configurado', () => {
+    vi.stubEnv('CORA_BIND', '0.0.0.0')
+    expect(enderecoDeEscuta()).toBe('0.0.0.0')
+    vi.unstubAllEnvs()
+  })
+
+  it('recusa valor com espaço', () => {
+    vi.stubEnv('CORA_BIND', '0.0.0.0 extra')
+    expect(() => enderecoDeEscuta()).toThrow()
     vi.unstubAllEnvs()
   })
 })
