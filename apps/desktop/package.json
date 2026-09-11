@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icons": "tauri icon ../../docs/esteira/fase-4-acesso-windows-e-pwa-android/design/assets/icon-windows-source.svg --output src-tauri/icons"
+  },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0"
   }
