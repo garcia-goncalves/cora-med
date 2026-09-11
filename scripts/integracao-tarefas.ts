@@ -102,11 +102,15 @@ async function main(): Promise<void> {
   console.log('')
 
   try {
-    const { tasks, pages } = await collectAllTasks(client, { limit: 10 })
+    const resultado = await collectAllTasks(client, { limit: 10 })
+    const { tasks, pages } = resultado
     console.log('resultado: 200 OK')
     console.log(`páginas percorridas: ${pages}`)
     console.log(`tarefas recebidas: ${tasks.length}`)
     console.log(`ids distintos: ${new Set(tasks.map((t) => t.id)).size}`)
+    if (!resultado.completa) {
+      console.log(`ATENÇÃO: listagem PARCIAL — parei no teto de ${resultado.maxPages} páginas`)
+    }
     console.log('')
     console.log('ids (sem título, para não vazar conteúdo):')
     for (const t of tasks) console.log(`  ${t.id} [${t.status}/${t.priority}]`)

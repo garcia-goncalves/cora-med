@@ -216,7 +216,9 @@ async function main(): Promise<void> {
     'Paginação com limit=1, sem duplicata nem omissão',
     'sem duplicata',
     async () => {
-      const { tasks } = await collectAllTasks(cliente({ token: tokenA }), { limit: 1 })
+      const resultado = await collectAllTasks(cliente({ token: tokenA }), { limit: 1 })
+      const { tasks } = resultado
+      if (!resultado.completa) return 'PARCIAL: teto de páginas'
       const distintos = new Set(tasks.map((t) => t.id)).size
       if (distintos !== tasks.length) return `DUPLICOU (${tasks.length} itens, ${distintos} ids)`
       const faltando = idsA.filter((id) => !tasks.some((t) => t.id === id))

@@ -4,17 +4,27 @@ import type { WorkspaceClient } from './client.js'
 import { ContractViolationError, WorkspaceApiError } from './errors.js'
 
 /**
+ * Resultado de `collectAllTasks`: `completa: false` só acontece no teto de páginas — uma
+ * lista maior do que o teto que **nós** escolhemos, não um defeito do outro lado. Cursor em
+ * laço e id repetido continuam sendo defeito e continuam estourando `ContractViolationError`.
+ */
+export type ColetaDeTarefas =
+  | { tasks: Task[]; pages: number; completa: true }
+  | { tasks: Task[]; pages: number; completa: false; motivo: 'teto_de_paginas'; maxPages: number }
+
+/**
  * Percorre todas as páginas de tarefas.
  *
  * Duas proteções que existem porque paginação quebrada é silenciosa:
  * - id repetido entre páginas -> `ContractViolationError` em vez de lista inflada;
- * - cursor que se repete ou número de páginas acima do teto -> para e erra,
- *   em vez de girar para sempre.
+ * - cursor que se repete -> para e erra, em vez de girar para sempre.
+ * O teto de páginas não entra nessa lista: virar `completa: false` é dado, não defeito —
+ * é uma lista maior do que o teto que nós escolhemos, e a Thaís precisa ouvir isso.
  */
 export async function collectAllTasks(
   client: WorkspaceClient,
   opts: { limit?: number; maxPages?: number; signal?: AbortSignal } = {},
-): Promise<{ tasks: Task[]; pages: number }> {
+): Promise<ColetaDeTarefas> {
   const limit = opts.limit ?? 20
   const maxPages = opts.maxPages ?? 50
 
@@ -64,7 +74,7 @@ export async function collectAllTasks(
       tasks.push(task)
     }
 
-    if (page.nextCursor === null) return { tasks, pages }
+    if (page.nextCursor === null) return { tasks, pages, completa: true }
 
     if (seenCursors.has(page.nextCursor)) {
       throw new ContractViolationError('paginação entrou em laço: cursor repetido', null)
@@ -73,10 +83,7 @@ export async function collectAllTasks(
     cursor = page.nextCursor
 
     if (pages >= maxPages) {
-      throw new ContractViolationError(
-        `paginação passou de ${maxPages} páginas sem terminar`,
-        null,
-      )
+      return { tasks, pages, completa: false, motivo: 'teto_de_paginas', maxPages }
     }
   }
 }

@@ -274,12 +274,14 @@ describe('paginação', () => {
       })
     })
 
-    const { tasks, pages } = await collectAllTasks(client, { limit: 10 })
+    const resultado = await collectAllTasks(client, { limit: 10 })
+    const { tasks, pages } = resultado
 
     expect(pages).toBe(3)
     expect(tasks).toHaveLength(25)
     expect(new Set(tasks.map((t) => t.id)).size).toBe(25)
     expect(tasks.map((t) => t.id)).toEqual(todas.map((t) => t.id))
+    expect(resultado.completa).toBe(true)
   })
 
   it('cursor recusado no meio da listagem faz RECOMEÇAR, não falhar', async () => {
@@ -354,10 +356,39 @@ describe('paginação', () => {
         nextCursor: 'sempre-o-mesmo',
       }),
     )
+    await expect(collectAllTasks(client, { limit: 10 })).rejects.toBeInstanceOf(
+      ContractViolationError,
+    )
     const erro = (await collectAllTasks(client, { limit: 10 }).catch(
       (e: unknown) => e,
     )) as ContractViolationError
     expect(erro).toBeInstanceOf(ContractViolationError)
     expect(erro.details).toMatch(/laço|páginas/)
+  })
+
+  it('teto de páginas devolve parcial, não exceção', async () => {
+    // Sem isso, "não encontrei pendências" pode estar mentindo por sincronização truncada.
+    let contador = 0
+    const client = makeClient(async () => {
+      const pagina = fixtures.tarefasSinteticas(10).map((t) => ({
+        ...t,
+        id: `${t.id}-${contador}`,
+      }))
+      contador += 1
+      return jsonResponse(200, {
+        contractVersion: CONTRACT_VERSION,
+        items: pagina,
+        nextCursor: `sempre-tem-mais-${contador}`,
+      })
+    })
+
+    const resultado = await collectAllTasks(client, { limit: 10, maxPages: 2 })
+
+    expect(resultado.completa).toBe(false)
+    if (!resultado.completa) {
+      expect(resultado.motivo).toBe('teto_de_paginas')
+    }
+    expect(resultado.pages).toBe(2)
+    expect(resultado.tasks.length).toBe(20)
   })
 })
