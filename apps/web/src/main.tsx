@@ -19,3 +19,15 @@ createRoot(raiz).render(
     <App />
   </StrictMode>,
 )
+
+// Registro do service worker (Etapa 17, PWA) só em produção — em `pnpm dev` ele
+// atrapalharia o recarregamento a quente do Vite sem trazer benefício nenhum. Falha em
+// silêncio se o navegador não suportar: o app continua funcionando como site comum, só
+// sem o prompt de instalação (`design.md`, tela 4).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Intencional: nenhuma ação de recuperação existe para isso.
+    })
+  })
+}
