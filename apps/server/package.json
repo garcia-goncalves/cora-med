@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "dev": "tsx src/http/main.ts"
+    "dev": "tsx src/http/main.ts",
+    "build": "node build.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.123.0",
