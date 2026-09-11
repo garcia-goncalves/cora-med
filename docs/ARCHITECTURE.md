@@ -43,8 +43,9 @@ saída de modelo vire efeito sem passar por `decide()`.
 | `packages/contracts` | schemas Zod do contrato do Workspace + tipos internos | implementado |
 | `packages/workspace-client` | HTTP, erros tipados, paginação com detecção de duplicata e de laço, timeout | implementado |
 | `packages/policy` | catálogo fechado de ferramentas, categorias de risco, hash de aprovação, bloco de dado não confiável | implementado |
-| `apps/server` | `MotorPort`, `AnthropicMotor` + `GeminiMotor` (ADR 0003, teste), registro de ferramentas, laço `runTurn`, servidor HTTP (`GET /health`, `POST /turno`) | implementado e testado sem rede; chamada real exercida no `GeminiMotor`, ainda não no `AnthropicMotor` |
-| `apps/desktop` | aplicativo Windows (Electron) | **não existe** |
+| `apps/server` | `MotorPort`, `AnthropicMotor` + `GeminiMotor` (ADR 0003, teste), registro de ferramentas, laço `runTurn`, servidor HTTP (`GET /health`, `POST /auth/*`, `POST /turno`), autenticação de usuário humano, arquivos estáticos da SPA | implementado e testado sem rede; chamada real exercida no `GeminiMotor`, ainda não no `AnthropicMotor` |
+| `apps/web` | SPA React (login, chat, menu de conta), PWA instalável | implementado, sem chamada real ao provedor de modelo |
+| `apps/desktop` | janela Tauri para a URL publicada (Windows) | implementado como configuração; `tauri build` (o `.msi`/`.exe`) é passo manual, não executado nesta máquina |
 
 ## Decisões que já valem
 
@@ -119,10 +120,13 @@ processo.
 
 - **Persistência da Cora**: MySQL, banco lógico/usuário separado do Workspace. Nada
   escrito ainda.
-- **Desktop Windows**: Electron + React, com `contextIsolation`, sandbox do renderer,
-  `nodeIntegration` desligado e IPC com schema + allowlist. Pareamento por código curto
-  e expirável.
-- **Android**: Workspace responsivo com PWA, não app nativo.
+- **Instalador Windows assinado**: `apps/desktop` (Tauri, Fase 4) gera o `.msi`/`.exe`
+  sem assinatura de código — o aviso do SmartScreen na primeira execução é esperado e
+  documentado em `apps/desktop/ANTES-DE-INSTALAR.md`. Assinatura fica para depois.
+- **Pareamento de dispositivo** (código curto e expirável, autorizado pela Thaís) segue
+  como plano — a Fase 4 entregou login por e-mail/senha, não pareamento por código.
+- **Android**: PWA instalável (Fase 4, `apps/web`), não app nativo — sem histórico
+  persistido e sem 2FA.
 - **Voz**: botão e atalho primeiro; wake word PT-BR só depois de comprovada no
   equipamento da Thaís.
 - **Automação local**: ordem de preferência API → DOM/Playwright → UI Automation →
@@ -161,3 +165,42 @@ A Thaís alcança isso pelo canal que já existe: a ferramenta `workspace.inbox.
 Persistência continua **não existindo** — a fila reconstrói do zero a cada reinício
 do processo, o que é aceitável porque o Workspace é a fonte da verdade e cada
 sincronização é barata.
+
+## Fase 4 — acesso Windows e PWA Android (11/09/2026)
+
+Três peças novas, nenhuma tocando o desenho de `runTurn`/`decide()` acima:
+
+**`apps/server/src/auth/`** — login por e-mail e senha contra até duas contas nomeadas
+(`contas.ts`, lidas de `CORA_CONTA_1_*`/`CORA_CONTA_2_*`), hash argon2id atrás de uma
+porta injetável (`senha.ts`, `PortaDeHashDeSenha`, para trocar a implementação sem
+tocar quem chama — ver risco 1 do plano da fase), sessão opaca em memória de processo
+(`sessao.ts`), cookie `HttpOnly`/`Secure`/`SameSite=Lax` (`cookie.ts`) e freio de
+tentativas por IP+e-mail e por IP (`freio.ts`). `POST /turno` passou a exigir essa
+sessão e a usar o `delegationToken` da conta logada — a antiga variável única de
+delegação (um só token para o processo inteiro) deixou de existir; cada conta tem a
+sua, e há um `ToolRegistry` por conta (`http/boot.ts`, `montarRegistryPorConta`).
+
+**Servidor na mesma origem da SPA (`http/estaticos.ts`, `http/boot.ts`).** `CORA_BIND` e
+`CORA_HOSTS_PERMITIDOS` tornam bind e lista de hosts aceitos configuráveis por decisão
+explícita de quem sobe o processo — os padrões continuam sendo só `127.0.0.1` e os
+hosts locais, então nada muda em quem não define as variáveis. `CORA_RAIZ_ESTATICA`
+aponta para o build da SPA (`apps/web/dist`); quando presente, `GET` fora de
+`/health`, `/auth/*` e `/turno` serve o arquivo estático ou cai no `index.html` (SPA),
+com verificação de origem (decisão 8 da spec) fechando a parte de CSRF que
+`SameSite=Lax` sozinho não cobre. Servir na mesma origem é a razão de **CORS não
+existir**: não há requisição cross-origin para liberar.
+
+**`apps/web`** — SPA React (login, chat com todos os estados, menu de conta), PWA
+instalável (manifest, service worker mínimo, prompt de instalação) — ver
+`docs/esteira/fase-4-acesso-windows-e-pwa-android/design.md` para as telas.
+**`apps/desktop`** — janela Tauri que abre a URL publicada; não é um cliente HTTP
+próprio, é o mesmo front-end da web dentro de uma janela nativa do Windows. Sem
+assinatura de código: o SmartScreen mostra aviso na primeira execução, documentado em
+`apps/desktop/ANTES-DE-INSTALAR.md`.
+
+**O que esta fase não fez, e não vale alegar que foi:** nenhuma publicação executada
+(o roteiro está em `docs/publicacao/tinehost.md`, escrito, não rodado); nenhum
+instalador `.msi`/`.exe` gerado (`tauri build` depende de Rust e MSVC, que não existem
+nesta máquina); sem histórico de conversa persistido; sem 2FA; sem SSO — a Cora nasceu
+com login próprio, e a pergunta sobre um futuro endpoint de SSO vai para o Workspace
+como ticket `CORA-006` (`med-coordination/tickets/CORA-006/`).

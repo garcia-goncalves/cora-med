@@ -12,7 +12,7 @@ não é `feito`.
 | 2 | Criação de tarefa com prévia aprovável | **feito e comprovado** |
 | 2b | Conversa com modelo de linguagem | **primeiro turno real comprovado (Gemini) — ver abaixo** |
 | 3 | Organização e resumo operacional | **feito sobre Tarefa; Card/Evento aguardam CORA-005 — ver abaixo** |
-| 4 | Acesso Windows e PWA Android | não iniciada |
+| 4 | Acesso Windows e PWA Android | **feito em código; nenhuma publicação executada — ver abaixo** |
 | 5 | Voz | não iniciada |
 | 6 | Uma automação local real | não iniciada |
 | 7 | Proatividade e implantação | não iniciada |
@@ -160,17 +160,23 @@ foi feita. A qualidade da extração de intenção em português **não** foi me
 
 ## O que aparece como indisponível, e vai continuar assim
 
-Voz, wake word, desktop Windows, PWA Android, automação de navegador e e-mail proativo.
-Nenhuma dessas coisas ganha botão com sucesso simulado.
+Voz, wake word, automação de navegador e e-mail proativo. Nenhuma dessas coisas ganha
+botão com sucesso simulado.
+
+**Desktop Windows e PWA Android saíram desta lista em 11/09/2026** (Fase 4, ver
+seção abaixo) — o código existe e está testado; o que falta é publicar e gerar o
+instalador, não desenhar a funcionalidade.
 
 **Criação de tarefa saiu desta lista em 03/09/2026**, e saiu inteira: ela foi exercida
 contra um Workspace real, com prévia, aprovação vinculada ao conteúdo e idempotência.
 
 **Conversa com modelo** ganhou a peça que faltava em 04/09/2026: existe agora um servidor
 HTTP (`apps/server/src/http`, `GET /health` e `POST /turno`) escutando em porta,
-encaixado no motor e no laço já existentes. 16 arquivos de teste, 282 testes, todos sem
-rede — `ScriptedMotor` no lugar do motor real. Provado subindo o processo de verdade
-(`pnpm --filter @cora/server run dev`) e batendo com `curl`.
+encaixado no motor e no laço já existentes, todos os testes sem rede — `ScriptedMotor`
+no lugar do motor real. A contagem de testes não fica aqui: ela só envelhece — rode
+`pnpm run test` para o número de agora, registrado em `docs/OPERATIONS.md`. Provado
+subindo o processo de verdade (`pnpm --filter @cora/server run dev`) e batendo com
+`curl`.
 
 **O que continua faltando, e não vale alegar que foi feito:** nenhuma chamada real à
 Anthropic aconteceu — o processo subiu com uma chave sintética, nunca com uma de verdade.
@@ -261,6 +267,40 @@ nada.
 
 **Ticket aberto, aguardando o Workspace:** `CORA-005` — Card e Evento no contrato
 `workspace-agent-v1`, próxima versão minor, só leitura.
+
+## Fase 4 — acesso Windows e PWA Android, feita em código (11/09/2026)
+
+Login de usuário humano (`apps/server/src/auth/`), SPA React em `apps/web` (login,
+chat, menu de conta, PWA instalável) e janela Tauri em `apps/desktop`. Detalhe completo
+em `docs/ARCHITECTURE.md`, seção "Fase 4". `pnpm run test` sobe para 532 testes em 36
+arquivos, ainda sem rede; `pnpm run typecheck` limpo.
+
+**O que foi comprovado:** a suíte local inteira, o `typecheck`, e o servidor subindo de
+verdade com as duas contas configuradas e o fluxo `POST /auth/entrar` → cookie →
+`POST /turno` autenticado (testes de `apps/server/src/auth/rotas.test.ts` e
+`apps/server/src/http/server.test.ts`).
+
+**O que NÃO foi feito, e não vale alegar que foi:**
+
+- **Nenhuma publicação foi executada.** O roteiro manual para a TineHost está escrito
+  em `docs/publicacao/tinehost.md` — Application Root, Startup File, Node 20, variáveis
+  no painel, teste do `@node-rs/argon2` antes de tudo — mas nenhum passo dele rodou.
+  Sem publicação, não há URL real para `apps/desktop` abrir nem para instalar como PWA
+  fora desta máquina.
+- **Instalador Windows não assinado, e não gerado.** `tauri build` depende de Rust e
+  MSVC, que não existem nesta máquina — `apps/desktop` entrega configuração, ícones e
+  documentação verificáveis, não o `.msi`/`.exe`. Quando alguém gerar o instalador, o
+  SmartScreen vai avisar na primeira execução (documentado em
+  `apps/desktop/ANTES-DE-INSTALAR.md`); assinatura de código fica para depois.
+- **Sem histórico de conversa persistido.** A sessão de autenticação é opaca e em
+  memória do processo — cai no reinício, como a fila de entrada da Fase 3.
+- **Sem 2FA.** Login é e-mail e senha, um fator só.
+- **Sem SSO.** A Cora nasceu com login próprio por decisão da fase, não por
+  esquecimento — o ticket `CORA-006` (`med-coordination/tickets/CORA-006/`) pergunta ao
+  Workspace se faz sentido, no futuro, um endpoint que emita ou renove delegação a
+  partir de uma sessão de navegador válida. Não bloqueia esta fase.
+- **Nenhuma chamada real ao provedor de modelo** foi feita durante esta fase — mesma
+  disciplina de sempre, suíte sem rede com `fetchImpl`/motor injetado.
 
 ## Controles que acompanham toda fase, não a fase 7
 

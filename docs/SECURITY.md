@@ -106,10 +106,13 @@ cancelamento entre propostas, propagação do signal até o handler, e reconcili
 
 Alerta de provedor não é corte de orçamento. O corte é nosso.
 
-## Superfície HTTP (implementado, 04/09/2026)
+## Superfície HTTP (implementado, 04/09/2026; autenticação e bind configurável na Fase 4)
 
-Primeira porta de rede da Cora: `apps/server/src/http`, dois endpoints (`GET /health`,
-`POST /turno`), escutando só em `127.0.0.1`. O que protege:
+Primeira porta de rede da Cora: `apps/server/src/http`, hoje cinco endpoints
+(`GET /health`, `POST /auth/entrar`, `POST /auth/sair`, `GET /auth/sessao`,
+`POST /turno`). Padrão continua sendo escutar só em `127.0.0.1` — a partir da Fase 4,
+`CORA_BIND` permite outra interface por decisão explícita de quem sobe o processo (ver
+`docs/OPERATIONS.md`), nunca por omissão. O que protege:
 
 - **Cabeçalho `Host` conferido antes de qualquer roteamento**, contra DNS rebinding —
   bind em `127.0.0.1` sozinho não impede que uma página hospedada num domínio que o
@@ -123,20 +126,23 @@ Primeira porta de rede da Cora: `apps/server/src/http`, dois endpoints (`GET /he
 - Um motor **novo por requisição** (`deps.criarMotor()` dentro do handler, nunca fora) —
   a mesma regra de `AnthropicMotor` amarrado a um `runId` (acima) vale aqui.
 
-**O que este endpoint NÃO faz, e é preciso ler com atenção:** `requester.requesterUserId`
-que chega no corpo de `POST /turno` é **afirmação do cliente, não identidade
-verificada** — não há autenticação de usuário humano nesta camada ainda (decisão
-registrada em `docs/esteira/fase-2b-servidor-conversa/spec.md`). Ele serve para o
-registro de execução (`ExecutionRecord`) e nada mais; a autorização real de qualquer
-efeito no Workspace continua vindo do `delegationToken` de ambiente que o processo já
-usa. Enquanto este endpoint não tiver autenticação própria, o registro de execução é
-auditoria de **intenção**, não de **identidade**.
+**Autenticação de usuário humano existe desde a Fase 4** (`apps/server/src/auth/`):
+`POST /auth/entrar`, `POST /auth/sair` e `GET /auth/sessao`, mais sessão opaca em
+cookie `HttpOnly`/`Secure`/`SameSite=Lax` e freio de tentativas por IP+e-mail e por IP.
+`POST /turno` **exige** essa sessão — sem cookie válido, `401 sessao_ausente` ou
+`sessao_expirada`, e nunca chega a chamar o motor. O corpo de `POST /turno` nem aceita
+mais `requester.requesterUserId` — o schema Zod (`.strict()`) só reconhece `mensagem` e
+`deviceId`; a identidade vem **sempre** do id da conta resolvida pela sessão, nunca do
+JSON do cliente. É essa conta (com o `delegationToken` **dela**, uma das duas
+configuradas em `CORA_CONTA_N_*`) que autoriza a chamada real ao Workspace — nunca mais
+um token de delegação único de ambiente. O registro de execução (`ExecutionRecord`)
+passa a ser auditoria de **identidade**, não só de intenção.
 
-**Consequência para quando existir endpoint de aprovação (Fase 3 em diante):**
-`approvedByUserId` (linha 44 acima) **não pode** ser comparado com um
-`requesterUserId` vindo do corpo HTTP sem autenticação — a trava que impede "aprovação de
-A autorizar ação de B" vira decorativa nesse instante. Isto precisa de solução de
-identidade antes de existir aprovação por HTTP, não depois.
+**Consequência para quando existir endpoint de aprovação (Fase 3 em diante):** com
+identidade agora vinda da sessão, `approvedByUserId` (linha 44 acima) pode ser
+comparado com segurança contra o `requesterUserId` de uma requisição HTTP autenticada
+— a lacuna registrada aqui antes da Fase 4 está fechada para as duas contas nomeadas
+que existem hoje.
 
 ## Segredos
 
