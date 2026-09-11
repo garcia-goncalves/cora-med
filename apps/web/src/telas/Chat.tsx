@@ -6,6 +6,7 @@ import { CampoDeEntrada } from '../componentes/CampoDeEntrada.js'
 import { Ilustracao } from '../componentes/Ilustracao.js'
 import { Mensagem } from '../componentes/Mensagem.js'
 import { MenuDeConta } from '../componentes/MenuDeConta.js'
+import { PromptDeInstalacao } from '../componentes/PromptDeInstalacao.js'
 import { TelaDeErro } from '../componentes/TelaDeErro.js'
 import { estadoInicialDaConversa, reduzirConversa, type EstadoDoResumo } from '../estado/conversa.js'
 import { textos } from '../textos.js'
@@ -175,12 +176,15 @@ export function Chat({ cliente, sessao, aoSessaoExpirar }: PropsDaTelaDeChat) {
         )}
       </div>
       {telaCheia === null ? (
-        <CampoDeEntrada
-          valor={estado.rascunho}
-          desabilitado={aguardandoResposta}
-          aoDigitar={(texto) => despachar({ tipo: 'digitar_rascunho', texto })}
-          aoEnviar={(texto) => void enviarMensagem(texto)}
-        />
+        <>
+          <PromptDeInstalacao />
+          <CampoDeEntrada
+            valor={estado.rascunho}
+            desabilitado={aguardandoResposta}
+            aoDigitar={(texto) => despachar({ tipo: 'digitar_rascunho', texto })}
+            aoEnviar={(texto) => void enviarMensagem(texto)}
+          />
+        </>
       ) : null}
     </div>
   )

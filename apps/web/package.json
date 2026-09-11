@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "icones": "node scripts/gerar-icones.mjs"
   },
   "dependencies": {
     "@fontsource/montserrat": "^5.1.1",
