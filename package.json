@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @cora/web run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "integracao:tarefas": "tsx scripts/integracao-tarefas.ts"
+    "integracao:tarefas": "tsx scripts/integracao-tarefas.ts",
+    "verificacao:fase04": "tsx scripts/verificacao-fase-04.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
