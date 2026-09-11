@@ -28,18 +28,27 @@ export async function sincronizarTarefas(entrada: {
   try {
     const coleta = await collectAllTasks(client, { limit, maxPages, signal })
 
-    for (const task of coleta.tasks) {
-      const item: InboxItem = {
-        tipo: 'tarefa',
-        fonte: 'workspace:tasks',
-        identificadorDoWorkspace: task.id,
-        titulo: task.title,
-        status: task.status,
-        prioridade: task.priority,
-        prazo: task.dueAt,
-        vistoEm: agora().toISOString(),
+    const itens: InboxItem[] = coleta.tasks.map((task) => ({
+      tipo: 'tarefa',
+      fonte: 'workspace:tasks',
+      identificadorDoWorkspace: task.id,
+      titulo: task.title,
+      status: task.status,
+      prioridade: task.priority,
+      prazo: task.dueAt,
+      vistoEm: agora().toISOString(),
+    }))
+
+    if (coleta.completa) {
+      // Coleta completa: o que não veio junto não existe mais (foi concluído, apagado ou
+      // saiu do escopo) — reconcilia a fonte inteira em vez de só upsertar item a item.
+      fila.substituirFonte('workspace:tasks', itens)
+    } else {
+      // Coleta parcial: uma página não vista não significa item removido. Upsert
+      // incremental só nos itens vistos, sem tocar no resto da fila.
+      for (const item of itens) {
+        fila.adicionar(item)
       }
-      fila.adicionar(item)
     }
 
     if (coleta.completa) {

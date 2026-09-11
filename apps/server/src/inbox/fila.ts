@@ -16,34 +16,53 @@ import { chaveDeInbox, type InboxItem } from '@cora/contracts'
  * precisar de uma fila cria uma instância.
  */
 export class FilaDeEntrada {
-  private readonly vistos = new Set<string>()
-  private readonly registro: InboxItem[] = []
+  /**
+   * Mapa em vez de `Set` + array: a chave já carrega a posição, e sobrescrever o valor de
+   * uma chave existente é o upsert inteiro — sem precisar apagar e reinserir para atualizar.
+   */
+  private readonly registro = new Map<string, InboxItem>()
 
   /**
-   * Adiciona um item. Se a chave já foi vista, o item é descartado e o que já estava na
-   * fila **não** é sobrescrito — o primeiro registro é o que vale.
+   * Adiciona um item. Se a chave já existia, o registro é **substituído** pelo mais novo —
+   * upsert, não descarte. Uma integração real mostrou o custo do comportamento antigo
+   * ("o primeiro registro é o que vale"): tarefa que saía de `PENDENTE` para `FAZENDO` ou
+   * `CONCLUIDA` nunca atualizava na fila, e o resumo continuava reportando o status velho
+   * para sempre, enquanto o processo vivesse.
    */
   adicionar(item: InboxItem): 'novo' | 'duplicado' {
     const chave = chaveDeInbox(item)
-    if (this.vistos.has(chave)) {
-      return 'duplicado'
+    const eraNovo = !this.registro.has(chave)
+    this.registro.set(chave, item)
+    return eraNovo ? 'novo' : 'duplicado'
+  }
+
+  /**
+   * Reconcilia uma fonte inteira contra uma sincronização **completa**: todo item que já
+   * estava na fila com aquela `fonte` e não aparece em `itens` é removido, e os itens novos
+   * entram (ou atualizam, via `adicionar`). Só faz sentido para coleta completa — uma visão
+   * parcial não pode concluir que algo sumiu, e não deve chamar este método.
+   */
+  substituirFonte(fonte: InboxItem['fonte'], itens: readonly InboxItem[]): void {
+    for (const [chave, itemGuardado] of this.registro) {
+      if (itemGuardado.fonte === fonte) {
+        this.registro.delete(chave)
+      }
     }
-    this.vistos.add(chave)
-    this.registro.push(item)
-    return 'novo'
+    for (const item of itens) {
+      this.adicionar(item)
+    }
   }
 
   /** Cópia, na ordem de inserção — mutar o array devolvido não altera a fila. */
   itens(): readonly InboxItem[] {
-    return [...this.registro]
+    return [...this.registro.values()]
   }
 
   tamanho(): number {
-    return this.registro.length
+    return this.registro.size
   }
 
   limpar(): void {
-    this.vistos.clear()
-    this.registro.length = 0
+    this.registro.clear()
   }
 }

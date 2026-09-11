@@ -136,10 +136,12 @@ export function descreverResumo(resumo: ResumoOperacional): string {
         'parada esperando por você.'
       )
     case 'com_pendencias': {
+      // A lista mostra só os itens PENDENTE: o cabeçalho conta pendências, então a
+      // listagem abaixo tem de trazer exatamente o que foi contado — nunca um item
+      // FAZENDO junto, que faria número e lista discordarem.
       const pendentes = resumo.itens.filter((item) => item.status === 'PENDENTE')
       return (
-        `Você tem ${pendentes.length} tarefa(s) pendente(s):\n\n` +
-        listarItensPorFonte(resumo.itens)
+        `Você tem ${pendentes.length} tarefa(s) pendente(s):\n\n` + listarItensPorFonte(pendentes)
       )
     }
   }

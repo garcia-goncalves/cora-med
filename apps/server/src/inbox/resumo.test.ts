@@ -135,6 +135,25 @@ describe('listagem de itens aponta a fonte', () => {
     expect(estaEmbrulhado(frase)).toBe(true)
   })
 
+  it('com_pendencias: o número do cabeçalho bate com a lista — só os PENDENTE aparecem', () => {
+    // Fila mista (1 PENDENTE + 2 FAZENDO): o cabeçalho conta pendências, e a listagem
+    // abaixo tem de trazer exatamente essa contagem, nunca os itens FAZENDO junto.
+    const resumo = montarResumo({
+      itens: [
+        item({ identificadorDoWorkspace: 'SYNTH-task-001', status: 'PENDENTE' }),
+        item({ identificadorDoWorkspace: 'SYNTH-task-002', status: 'FAZENDO' }),
+        item({ identificadorDoWorkspace: 'SYNTH-task-003', status: 'FAZENDO' }),
+      ],
+      fontes: [FONTE_COMPLETA],
+    })
+    const frase = descreverResumo(resumo)
+
+    expect(frase).toMatch(/Você tem 1 tarefa\(s\) pendente\(s\)/)
+    expect(frase).toMatch(/SYNTH-task-001/)
+    expect(frase).not.toMatch(/SYNTH-task-002/)
+    expect(frase).not.toMatch(/SYNTH-task-003/)
+  })
+
   it('título gigante é cortado antes de embrulhar, e o bloco continua íntegro', () => {
     // O corte tem de vir antes do embrulho: cortar depois decepa o marcador de fechamento
     // e o bloco vaza — é exatamente o que este teste prova que não acontece.

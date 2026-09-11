@@ -93,6 +93,31 @@ describe('sincronizarTarefas', () => {
     expect(fila.tamanho()).toBe(0)
   })
 
+  it('sincronização completa que perdeu um item tira esse item da fila', async () => {
+    // Tarefa concluída, apagada ou fora de escopo some do Workspace de uma sincronização
+    // completa para a próxima — a fila tem de refletir isso, não continuar arrastando o
+    // item velho para sempre.
+    const tarefas = fixtures.tarefasSinteticas(2)
+    let chamada = 0
+    const client = makeClient(async () => {
+      chamada += 1
+      const restantes = chamada === 1 ? tarefas : tarefas.slice(0, 1)
+      return jsonResponse(200, {
+        contractVersion: fixtures.respostaVazia.contractVersion,
+        items: restantes,
+        nextCursor: null,
+      })
+    })
+    const fila = new FilaDeEntrada()
+
+    await sincronizarTarefas({ client, fila })
+    expect(fila.tamanho()).toBe(2)
+
+    await sincronizarTarefas({ client, fila })
+    expect(fila.tamanho()).toBe(1)
+    expect(fila.itens()[0]?.identificadorDoWorkspace).toBe(tarefas[0]?.id)
+  })
+
   it('o vistoEm não entra na chave de dedup: agora diferente continua dando um item só', async () => {
     const client = makeClient(async () => jsonResponse(200, fixtures.respostaComDuasTarefas))
     const fila = new FilaDeEntrada()
