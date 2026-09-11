@@ -175,13 +175,14 @@ describe('POST /auth/entrar', () => {
 
   it('e-mail desconhecido não bloqueia por IP+e-mail nem por e-mail — só o IP puro conta (item 7)', async () => {
     // Sem isto, um atacante mandando e-mails distintos faria os `Map`s de
-    // IP+e-mail e de e-mail crescerem sem limite. Prova indireta: 3 tentativas com
-    // e-mails DIFERENTES e limite 3 no freio de IP puro bloqueiam a 3ª — o mesmo
-    // resultado que dá com o e-mail repetido, porque quem conta aqui é só o IP.
+    // IP+e-mail e de e-mail crescerem sem limite. Prova indireta: com limite 3 no freio de
+    // IP puro, as 3 primeiras tentativas com e-mails DIFERENTES são toleradas (o contador
+    // chega a 3) e a 4ª já está bloqueada — o mesmo resultado que dá com o e-mail repetido,
+    // porque quem conta aqui é só o IP.
     const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
     const { base } = await subirServidor(montarDeps({ freio }))
 
-    for (const email of ['synth-x@teste.local', 'synth-y@teste.local']) {
+    for (const email of ['synth-w@teste.local', 'synth-x@teste.local', 'synth-y@teste.local']) {
       await fetch(`${base}/auth/entrar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

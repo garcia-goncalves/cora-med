@@ -83,16 +83,20 @@ export class FreioDeTentativas {
   }
 
   /**
-   * Operação atômica: registra a tentativa da chave e devolve, já contando este
-   * incremento, se ela excede o limite. Chamado ANTES do `await` de verificação de senha
-   * (CPU-bound) em `rotas.ts` — se o registro só acontecesse depois de conferir a senha,
-   * tentativas paralelas com a mesma chave passariam todas pela checagem antes de
-   * qualquer uma delas registrar, driblando o limite. Login bem-sucedido chama `limpar()`
-   * em seguida, desfazendo o incremento desta própria tentativa.
+   * Operação atômica: devolve se a chave JÁ ESTAVA bloqueada pelas falhas anteriores, e só
+   * depois registra esta tentativa. A ordem importa: checar o estado ANTES de registrar
+   * preserva "N falhas toleradas, bloqueado a partir da (N+1)-ésima" — checar depois
+   * contaria a própria tentativa atual contra o limite dela e bloquearia uma tentativa
+   * cedo demais. Chamado ANTES do `await` de verificação de senha (CPU-bound) em
+   * `rotas.ts` — como as duas operações daqui são síncronas (sem `await` entre elas), não
+   * há brecha para tentativas paralelas passarem pela checagem antes de qualquer uma
+   * registrar, driblando o limite. Login bem-sucedido chama `limpar()` em seguida,
+   * desfazendo o incremento desta própria tentativa.
    */
   tentarRegistrar(chave: string): boolean {
+    const jaBloqueada = this.estaBloqueado(chave)
     this.registrarFalha(chave)
-    return this.estaBloqueado(chave)
+    return jaBloqueada
   }
 
   /** Chamado no login bem-sucedido: apaga o contador daquela chave. */

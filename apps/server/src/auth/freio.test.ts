@@ -49,25 +49,30 @@ describe('FreioDeTentativas', () => {
     expect(freio.estaBloqueado('SYNTH-chave')).toBe(false)
   })
 
-  it('tentarRegistrar incrementa e devolve se já excede o limite, num só passo', () => {
+  it('tentarRegistrar devolve se a chave JÁ ESTAVA bloqueada antes desta tentativa, e só depois registra', () => {
     const freio = new FreioDeTentativas({ limite: 3, now: () => new Date(0) })
 
-    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 1ª
-    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 2ª
-    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(true) // 3ª atinge o limite
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 1ª falha, contador vira 1
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 2ª falha, contador vira 2
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(false) // 3ª falha, contador vira 3 -- "limite" falhas toleradas
+    expect(freio.tentarRegistrar('SYNTH-chave')).toBe(true) // 4ª: já estava em 3/3 antes desta chamada
   })
 
-  it('tentarRegistrar fecha a corrida entre checar e registrar (item 6): duas chamadas concorrentes já contam as duas antes de qualquer decisão', () => {
+  it('tentarRegistrar fecha a corrida entre checar e registrar (item 6): a checagem usa o estado ANTES desta chamada, e as duas operações são síncronas', () => {
     const freio = new FreioDeTentativas({ limite: 2, now: () => new Date(0) })
 
     // Simula duas requisições "paralelas" chegando com a mesma chave: com a checagem e o
-    // registro separados (código antigo), as duas passariam pela checagem antes de
-    // qualquer uma registrar. Com a operação atômica, a segunda já vê o efeito da primeira.
-    const primeira = freio.tentarRegistrar('SYNTH-chave')
-    const segunda = freio.tentarRegistrar('SYNTH-chave')
+    // registro separados por um `await` no meio (código antigo), as duas passariam pela
+    // checagem antes de qualquer uma registrar. Aqui a checagem usa o estado já registrado
+    // pela chamada anterior, e não há `await` entre checar e registrar dentro da própria
+    // chamada -- fecha a corrida sem adiantar o bloqueio em uma tentativa.
+    const primeira = freio.tentarRegistrar('SYNTH-chave') // contador 0 -> false, vira 1
+    const segunda = freio.tentarRegistrar('SYNTH-chave') // contador 1 -> false, vira 2 (= limite)
+    const terceira = freio.tentarRegistrar('SYNTH-chave') // contador 2 -> já bloqueada -> true
 
     expect(primeira).toBe(false)
-    expect(segunda).toBe(true)
+    expect(segunda).toBe(false)
+    expect(terceira).toBe(true)
   })
 
   it('login bem-sucedido desfaz o incremento de tentarRegistrar via limpar()', () => {
