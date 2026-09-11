@@ -8,7 +8,7 @@
   },
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @cora/web run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "integracao:tarefas": "tsx scripts/integracao-tarefas.ts"
