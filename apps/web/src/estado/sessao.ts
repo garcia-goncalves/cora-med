@@ -21,17 +21,22 @@ export interface ControleDeSessao {
   encerrarSessao: () => void
 }
 
+/** Instância padrão, criada uma única vez no escopo do módulo — nunca recalculada a
+ * cada render, senão o `useEffect` abaixo (que depende de `[cliente]`) entra em loop. */
+const clienteDaApiPadrao = criarClienteDaApi()
+
 /**
  * Ao montar, confere se já existe sessão válida no servidor (cookie httpOnly enviado
  * automaticamente pelo navegador) — é o que permite recarregar a página sem perder a
  * conversa. `cliente` é injetável para não acoplar o hook à instância padrão.
  */
-export function useSessao(cliente: ClienteDaApi = criarClienteDaApi()): ControleDeSessao {
+export function useSessao(cliente?: ClienteDaApi): ControleDeSessao {
+  const clienteEfetivo = cliente ?? clienteDaApiPadrao
   const [estado, setEstado] = useState<EstadoDaSessao>({ status: 'verificando' })
 
   useEffect(() => {
     let cancelado = false
-    void cliente.obterSessao().then((resultado) => {
+    void clienteEfetivo.obterSessao().then((resultado) => {
       if (cancelado) return
       setEstado(
         resultado.status === 'sucesso'
@@ -42,7 +47,7 @@ export function useSessao(cliente: ClienteDaApi = criarClienteDaApi()): Controle
     return () => {
       cancelado = true
     }
-  }, [cliente])
+  }, [clienteEfetivo])
 
   const definirSessao = useCallback((sessao: SessaoDoUsuario) => {
     setEstado({ status: 'autenticado', sessao })

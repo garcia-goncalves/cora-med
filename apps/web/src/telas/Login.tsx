@@ -104,12 +104,13 @@ export function Login({ cliente, aoEntrar }: PropsDaTelaDeLogin) {
             value={email}
             readOnly={enviando}
             aria-invalid={errosDeCampo.email !== undefined}
+            aria-describedby={errosDeCampo.email === undefined ? 'login-email-ajuda' : 'login-email-erro'}
             onChange={(evento) => setEmail(evento.currentTarget.value)}
           />
           {errosDeCampo.email === undefined ? (
-            <span className="login-ajuda">{textos.login.ajudaEmail}</span>
+            <span id="login-email-ajuda" className="login-ajuda">{textos.login.ajudaEmail}</span>
           ) : (
-            <span className="login-erro-campo">{errosDeCampo.email}</span>
+            <span id="login-email-erro" className="login-erro-campo">{errosDeCampo.email}</span>
           )}
         </div>
         <div className="login-campo">
@@ -122,10 +123,11 @@ export function Login({ cliente, aoEntrar }: PropsDaTelaDeLogin) {
             value={senha}
             readOnly={enviando}
             aria-invalid={errosDeCampo.senha !== undefined}
+            aria-describedby={errosDeCampo.senha !== undefined ? 'login-senha-erro' : undefined}
             onChange={(evento) => setSenha(evento.currentTarget.value)}
           />
           {errosDeCampo.senha !== undefined ? (
-            <span className="login-erro-campo">{errosDeCampo.senha}</span>
+            <span id="login-senha-erro" className="login-erro-campo">{errosDeCampo.senha}</span>
           ) : null}
         </div>
         <button className="login-botao" type="submit" disabled={enviando}>

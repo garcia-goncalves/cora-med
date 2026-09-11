@@ -23,11 +23,15 @@ export interface PropsDoMenuDeConta {
 
 type Vista = 'lista' | 'confirmar_sair'
 
+/** Elementos que o laço de foco do painel considera ao ciclar com Tab/Shift+Tab. */
+const SELETOR_FOCAVEIS = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 export function MenuDeConta({ sessao, cliente, aoSair }: PropsDoMenuDeConta) {
   const clienteDaApi = cliente ?? clienteDaApiPadrao
   const [aberto, setAberto] = useState(false)
   const [vista, setVista] = useState<Vista>('lista')
   const ancoraRef = useRef<HTMLDivElement>(null)
+  const painelRef = useRef<HTMLDivElement>(null)
   const primeiroItemRef = useRef<HTMLButtonElement>(null)
 
   function fechar() {
@@ -41,7 +45,25 @@ export function MenuDeConta({ sessao, cliente, aoSair }: PropsDoMenuDeConta) {
     primeiroItemRef.current?.focus()
 
     function aoTeclar(evento: KeyboardEvent) {
-      if (evento.key === 'Escape') fechar()
+      if (evento.key === 'Escape') {
+        fechar()
+        return
+      }
+      // Laço de foco: enquanto o painel está visível, Tab/Shift+Tab nunca deixam o
+      // foco escapar para elementos por trás dele (o painel cobre a tela).
+      if (evento.key === 'Tab' && painelRef.current) {
+        const focaveis = Array.from(painelRef.current.querySelectorAll<HTMLElement>(SELETOR_FOCAVEIS))
+        const primeiro = focaveis.at(0)
+        const ultimo = focaveis.at(-1)
+        if (!primeiro || !ultimo) return
+        if (evento.shiftKey && document.activeElement === primeiro) {
+          evento.preventDefault()
+          ultimo.focus()
+        } else if (!evento.shiftKey && document.activeElement === ultimo) {
+          evento.preventDefault()
+          primeiro.focus()
+        }
+      }
     }
     function aoClicarFora(evento: MouseEvent) {
       // O gatilho fica dentro de `ancoraRef` também — sem isso, clicar nele para
@@ -76,7 +98,12 @@ export function MenuDeConta({ sessao, cliente, aoSair }: PropsDoMenuDeConta) {
         <IconeDeConta />
       </button>
       {aberto ? (
-        <div className="menu-de-conta-painel">
+        <div
+          className="menu-de-conta-painel"
+          ref={painelRef}
+          role="dialog"
+          aria-modal="true"
+        >
           {vista === 'lista' ? (
             <>
               <p className="menu-de-conta-identidade">
