@@ -1,0 +1,11 @@
+<!--
+  Fonte 1024x1024 para o instalador Windows/Tauri. Não é o .ico em si — é o
+  arquivo que o comando `tauri icon` (Tauri v2 CLI) lê para gerar todos os
+  tamanhos e o icon.ico automaticamente no momento do build. Ver assets.md.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cora">
+  <title>Cora</title>
+  <rect x="0" y="0" width="1024" height="1024" rx="192" fill="oklch(0.38 0.085 255)"/>
+  <path d="M734.8,668.0 A272,272 0 1,1 734.8,356.0"
+        fill="none" stroke="oklch(0.99 0.004 250)" stroke-width="128" stroke-linecap="round"/>
+</svg>

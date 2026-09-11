@@ -1,0 +1,11 @@
+<!--
+  Ícone "any" para manifest.json (purpose: "any") e base para apple-touch-icon
+  caso um dia entre iOS (fora de escopo hoje). Fundo com cantos arredondados,
+  não preenche a borda inteira — não é o icone maskable.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cora">
+  <title>Cora</title>
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="oklch(0.38 0.085 255)"/>
+  <path d="M367.4,334.0 A136,136 0 1,1 367.4,178.0"
+        fill="none" stroke="oklch(0.99 0.004 250)" stroke-width="64" stroke-linecap="round"/>
+</svg>
