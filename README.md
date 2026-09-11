@@ -4,13 +4,16 @@ Assistente empresarial da MedConsultoria, em português do Brasil. Ajuda a Thaí
 organizar a operação, consultar informações, preparar documentos, registrar pedidos e
 executar ações autorizadas no Workspace.
 
-**Estado hoje (04/09/2026): Fases 0, 1, 2 e o primeiro turno da Fase 2b concluídos e
-comprovados contra o Workspace real.** O servidor HTTP (`apps/server/src/http`,
-`GET /health` e `POST /turno`) respondeu de verdade a uma pergunta real, buscando tarefas
-reais no Workspace, usando o motor de TESTE (`GeminiMotor`, nível gratuito, custo zero —
-ADR 0003). Ainda falta: nenhuma chamada real à Anthropic, e nenhuma ferramenta de
-**escrita** foi exercida dentro de um turno. Ver `docs/ROADMAP.md` para o que é verdade e
-o que ainda não é.
+**Estado hoje (10/09/2026): Fases 0, 1, 2, o primeiro turno da Fase 2b e a Fase 3
+concluídos.** O servidor HTTP (`apps/server/src/http`, `GET /health` e `POST /turno`)
+respondeu de verdade a uma pergunta real, buscando tarefas reais no Workspace, usando o
+motor de TESTE (`GeminiMotor`, nível gratuito, custo zero — ADR 0003). A Fase 3
+acrescentou uma fila de entrada e um resumo operacional (`apps/server/src/inbox/`) que a
+Thaís já pode pedir na conversa, com a ferramenta `workspace.inbox.resumo` — hoje só
+sobre Tarefa, porque Card e Evento ainda não existem no contrato do Workspace
+(`CORA-005`, aberto e sem resposta). Ainda falta: nenhuma chamada real à Anthropic, e
+nenhuma ferramenta de **escrita** foi exercida dentro de um turno. Ver `docs/ROADMAP.md`
+para o que é verdade e o que ainda não é.
 
 ## Como rodar
 
