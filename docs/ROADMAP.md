@@ -1,6 +1,6 @@
 # Roteiro da Cora — o que é verdade e o que ainda não é
 
-Atualizado em 03/09/2026. Fases conforme o briefing, seção 14.
+Atualizado em 10/09/2026. Fases conforme o briefing, seção 14.
 
 A coluna **estado** só diz `feito` quando existe evidência executada. `scaffold compila`
 não é `feito`.
@@ -11,7 +11,7 @@ não é `feito`.
 | 1 | Consulta autenticada de tarefas | **feito e comprovado** |
 | 2 | Criação de tarefa com prévia aprovável | **feito e comprovado** |
 | 2b | Conversa com modelo de linguagem | **primeiro turno real comprovado (Gemini) — ver abaixo** |
-| 3 | Organização e resumo operacional | não iniciada |
+| 3 | Organização e resumo operacional | **feito sobre Tarefa; Card/Evento aguardam CORA-005 — ver abaixo** |
 | 4 | Acesso Windows e PWA Android | não iniciada |
 | 5 | Voz | não iniciada |
 | 6 | Uma automação local real | não iniciada |
@@ -218,6 +218,49 @@ específico da MedConsultoria. `docs/negocio/entrevista-thais.md` reúne o que j
 confirmar sozinho (site, Manual da Marca, PDFs de credenciamento no Workspace, mapa de
 telas do sistema) e as perguntas que só a Thaís pode responder — nenhum dado de negócio
 foi inventado para preencher a persona antes da entrevista acontecer.
+
+## Fase 3 — feita sobre Tarefa, comprovada localmente (10/09/2026)
+
+Fila de entrada (`apps/server/src/inbox/fila.ts`), sincronização com reconciliação
+(`sincronizar.ts`), resumo operacional com cinco estados nomeados e uma frase por
+estado (`resumo.ts`), sugestão de nomes parecidos que nunca funde
+(`nomes-parecidos.ts`) e a ferramenta `workspace.inbox.resumo`, alcançável pela Thaís
+dentro do `POST /turno` que já existia. Detalhe completo em
+`docs/esteira/fase-3-organizacao-operacional/` (briefing, spec, plano de execução) e
+em `docs/ARCHITECTURE.md`. 354 testes, sem rede; `pnpm run typecheck` limpo.
+
+**Duas revisões especialistas (typescript e security) acharam a mesma causa raiz,
+corrigida com teste antes de considerar a fase fechada**: a fila descartava
+atualização de item já visto ("primeiro registro vale"), então tarefa concluída ou
+removida no Workspace continuava aparecendo como pendente enquanto o processo do
+servidor vivesse — a revisão de segurança descreveu o cenário concreto de um título
+malicioso criado via formulário público que sobreviveria à própria exclusão no
+resumo. Corrigido: sincronização completa reconcilia a fonte inteira (o que sumiu no
+Workspace some da fila); sincronização parcial só atualiza o que viu, sem apagar
+nada.
+
+**O que NÃO foi feito, e não vale alegar que foi:**
+
+- **Card e Evento continuam sem dado real.** `CORA-005` foi aberto e enviado ao
+  Workspace (`med-coordination/tickets/CORA-005/`, commit `0ff6190`) perguntando se
+  essas entidades existem lá dentro; sem resposta ainda. O `InboxItem` só implementa
+  `tipo: 'tarefa'` — a forma dos outros dois não foi pré-desenhada de propósito, para
+  não repetir o retrabalho que aconteceu com o contrato de Tarefa entre as versões
+  0.1.0 e 0.2.1.
+- **Importação em lote de fonte externa** (e-mail, planilha) — a fonte não foi
+  escolhida; ficou fora do escopo desta entrega por decisão do dono, não por corte
+  unilateral.
+- **Nenhuma chamada real ao provedor foi feita durante esta fase** — a suíte inteira
+  roda sem rede, com `fetchImpl` injetado, como em todas as fases anteriores.
+- Dois achados menores da revisão, sem risco confirmado hoje, ficaram registrados mas
+  não corrigidos por proporcionalidade: o teste que impede fusão automática em
+  `nomes-parecidos.ts` prova por nome de chave, não por conteúdo do módulo (o módulo
+  em si está limpo, conferido linha a linha); e o matcher de nomes parecidos nasce
+  sem chamador em produção, porque o contrato 0.2.1 de Tarefa não traz nome, só
+  identificador.
+
+**Ticket aberto, aguardando o Workspace:** `CORA-005` — Card e Evento no contrato
+`workspace-agent-v1`, próxima versão minor, só leitura.
 
 ## Controles que acompanham toda fase, não a fase 7
 

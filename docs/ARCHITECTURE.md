@@ -133,3 +133,31 @@ processo.
 **Tarefa** = pedido interno delegado. **Card** = etapa de projeto. **Evento** =
 compromisso de agenda. São três entidades diferentes no Workspace e continuam três na
 Cora. Nada de unificar em "tarefa empresarial".
+
+## Fase 3 — fila de entrada e resumo operacional (10/09/2026)
+
+`apps/server/src/inbox/` é o módulo novo: `fila.ts` (estado em memória de processo,
+uma `FilaDeEntrada` por servidor, criada em `http/boot.ts`), `sincronizar.ts` (busca
+Tarefa no Workspace e reconcilia com a fila), `resumo.ts` (cinco estados nomeados —
+`erro_de_acesso`, `sincronizacao_incompleta`, `sem_registros`, `sem_pendencias`,
+`com_pendencias` — cada um com frase própria, nunca a mesma frase para dois fatos
+diferentes) e `nomes-parecidos.ts` (matcher puro que sugere, nunca funde). O
+protocolo `InboxItem` mora em `packages/contracts/src/cora/inbox.ts` — é estrutura
+própria da Cora, não cópia do contrato do Workspace, e hoje só sabe representar
+`tipo: 'tarefa'`; Card e Evento entram quando `CORA-005` (pedido ao Workspace,
+`med-coordination/tickets/CORA-005/`) responder.
+
+**Reconciliação, não só acumulação.** Uma sincronização **completa** substitui todo o
+conteúdo daquela fonte na fila (`FilaDeEntrada.substituirFonte`) — tarefa concluída ou
+removida no Workspace desaparece do resumo na sincronização seguinte. Uma
+sincronização **parcial** só atualiza (upsert) os itens que deu para ver, sem apagar
+nada, porque uma visão incompleta não prova que algo sumiu. Isto substituiu o desenho
+original ("primeiro registro vale"), corrigido depois que duas revisões
+independentes mostraram que ele deixava tarefa concluída congelada como pendente
+enquanto o processo do servidor vivesse.
+
+A Thaís alcança isso pelo canal que já existe: a ferramenta `workspace.inbox.resumo`
+(catálogo fechado, sem argumento nenhum) devolve o resumo dentro de `POST /turno`.
+Persistência continua **não existindo** — a fila reconstrói do zero a cada reinício
+do processo, o que é aceitável porque o Workspace é a fonte da verdade e cada
+sincronização é barata.
