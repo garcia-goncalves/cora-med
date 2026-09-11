@@ -5,6 +5,7 @@ import { BannerSemInternet } from '../componentes/BannerSemInternet.js'
 import { CampoDeEntrada } from '../componentes/CampoDeEntrada.js'
 import { Ilustracao } from '../componentes/Ilustracao.js'
 import { Mensagem } from '../componentes/Mensagem.js'
+import { MenuDeConta } from '../componentes/MenuDeConta.js'
 import { TelaDeErro } from '../componentes/TelaDeErro.js'
 import { estadoInicialDaConversa, reduzirConversa, type EstadoDoResumo } from '../estado/conversa.js'
 import { textos } from '../textos.js'
@@ -130,9 +131,13 @@ export function Chat({ cliente, sessao, aoSessaoExpirar }: PropsDaTelaDeChat) {
 
   return (
     <div className="chat-tela">
-      <header className="chat-cabecalho">
+      {/* `position: relative` só existe aqui porque `MenuDeConta.css` (Etapa 16)
+          posiciona o painel relativo ao cabeçalho, para ocupar a largura cheia dele
+          sem esta tela precisar de uma classe nova em Chat.css. */}
+      <header className="chat-cabecalho" style={{ position: 'relative' }}>
         <span className="chat-nome-produto">{textos.chat.nomeProduto}</span>
         <span className="chat-legenda">{textos.chat.legenda}</span>
+        <MenuDeConta sessao={sessao} aoSair={aoSessaoExpirar} />
       </header>
       {online ? null : <BannerSemInternet />}
       <div className="chat-corpo">
