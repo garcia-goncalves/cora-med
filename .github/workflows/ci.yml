@@ -38,3 +38,4 @@ jobs:
       # integração (scripts/verificacao-fase-0*.ts) fica de fora de propósito: ela precisa
       # de um Workspace de verdade e de credenciais que não existem no runner.
       - run: pnpm run test
+      - run: pnpm --filter @cora/web run build
