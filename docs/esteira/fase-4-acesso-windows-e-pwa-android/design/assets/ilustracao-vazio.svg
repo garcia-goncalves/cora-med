@@ -1,0 +1,23 @@
+<!--
+  Estado vazio: "sem pendências" (resumo.ts) e "primeira conversa" (lista de
+  mensagens vazia). Usa o token de cor sucesso de propósito, é o mesmo
+  significado semântico do chip "sem_pendencias" no resumo operacional.
+  Inline no HTML para herdar o tema (claro/escuro) via variável CSS.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" role="img" aria-hidden="true">
+  <!-- blob de fundo, decorativo -->
+  <path fill="var(--color-sucesso, oklch(0.48 0.130 150))" opacity="0.08"
+        d="M120,28c33,0,64,15,78,44c13,27,7,61-13,83c-20,22-52,31-82,25
+           c-30-6-56-27-64-56c-8-28,1-60,24-79C85,37,101,28,120,28Z"/>
+  <!-- cartão de lista vazia -->
+  <rect x="58" y="62" width="124" height="88" rx="12"
+        fill="none" stroke="var(--color-border, oklch(0.89 0.010 250))" stroke-width="2"/>
+  <line x1="76" y1="86" x2="150" y2="86" stroke="var(--color-muted, oklch(0.95 0.007 250))" stroke-width="8" stroke-linecap="round"/>
+  <line x1="76" y1="106" x2="164" y2="106" stroke="var(--color-muted, oklch(0.95 0.007 250))" stroke-width="8" stroke-linecap="round"/>
+  <line x1="76" y1="126" x2="130" y2="126" stroke="var(--color-muted, oklch(0.95 0.007 250))" stroke-width="8" stroke-linecap="round"/>
+  <!-- selo de "concluído", sobreposto ao canto inferior direito do cartão -->
+  <circle cx="176" cy="146" r="26" fill="var(--color-sucesso, oklch(0.48 0.130 150))"/>
+  <path d="M165,146 l8,8 l18,-18" fill="none"
+        stroke="var(--color-sucesso-foreground, oklch(0.99 0.004 150))"
+        stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

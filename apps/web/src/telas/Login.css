@@ -1,0 +1,118 @@
+/*
+ * Tela de login (tela 1 do design.md). Coluna única centralizada, sem imagem lateral,
+ * 360px de largura como alvo principal: respiro lateral de 16px (--space-4), corpo
+ * nunca abaixo de 16px (--text-base), alvo de toque nunca abaixo de 44px
+ * (--target-tocavel-min). Classes prefixadas com "login-" de propósito — este arquivo
+ * é global (sem CSS Modules) e a tela de chat (Etapa 15) ganha seu próprio prefixo.
+ */
+
+.login-tela {
+  box-sizing: border-box;
+  min-height: 100vh;
+  max-width: 360px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-4);
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.login-marca {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+}
+
+.login-marca svg {
+  width: 140px;
+  height: auto;
+}
+
+.login-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.login-campo label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.login-campo input {
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--text-base);
+  min-height: var(--target-tocavel-min);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.login-campo input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.login-campo input[readonly] {
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+}
+
+.login-campo input[aria-invalid='true'] {
+  border-color: var(--color-erro);
+}
+
+.login-ajuda {
+  font-size: var(--text-xs);
+  color: var(--color-muted-foreground);
+}
+
+.login-erro-campo {
+  font-size: var(--text-xs);
+  color: var(--color-erro);
+}
+
+.login-botao {
+  box-sizing: border-box;
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--text-base);
+  min-height: var(--target-tocavel-min);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  cursor: pointer;
+}
+
+.login-botao:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.login-botao:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.login-erro-formulario {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  font-size: var(--text-sm);
+  color: var(--color-erro);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--color-erro) 10%, var(--color-background));
+}
+
+.login-erro-formulario svg {
+  flex: none;
+  margin-top: var(--space-1);
+}

@@ -18,6 +18,10 @@ export type CategoriaDeErro =
   | 'metodo_nao_permitido'
   | 'rota_desconhecida'
   | 'host_nao_permitido'
+  | 'credenciais_invalidas'
+  | 'bloqueado_por_tentativas'
+  | 'sessao_ausente'
+  | 'sessao_expirada'
   | 'falha_do_motor'
   | 'falha_do_workspace'
   | 'falha_interna'
@@ -46,6 +50,10 @@ export const STATUS_POR_CATEGORIA: Record<CategoriaDeErro, number> = {
   metodo_nao_permitido: 405,
   rota_desconhecida: 404,
   host_nao_permitido: 400,
+  credenciais_invalidas: 401,
+  bloqueado_por_tentativas: 429,
+  sessao_ausente: 401,
+  sessao_expirada: 401,
   falha_do_motor: 502,
   falha_do_workspace: 502,
   falha_interna: 500,
@@ -60,6 +68,10 @@ const MENSAGEM_POR_CATEGORIA: Record<CategoriaDeErro, string> = {
   metodo_nao_permitido: 'Método não permitido para esta rota.',
   rota_desconhecida: 'Rota não encontrada.',
   host_nao_permitido: 'Cabeçalho Host não corresponde a este servidor.',
+  credenciais_invalidas: 'E-mail ou senha inválidos.',
+  bloqueado_por_tentativas: 'Muitas tentativas. Tente novamente mais tarde.',
+  sessao_ausente: 'Nenhuma sessão ativa.',
+  sessao_expirada: 'A sessão expirou. Entre novamente.',
   falha_do_motor: 'O motor de conversa falhou ao processar o turno.',
   falha_do_workspace: 'A comunicação com o Workspace falhou.',
   falha_interna: 'Falha interna inesperada.',

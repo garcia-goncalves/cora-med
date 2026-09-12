@@ -32,6 +32,7 @@ A Cora é a assistente da MedConsultoria. Este repositório é **só** a Cora.
 | Autenticação, delegação, aprovação | `docs/SECURITY.md` |
 | Como rodar, variáveis, evidência | `docs/OPERATIONS.md` |
 | Licenças de terceiros | `docs/THIRD-PARTY.md` |
+| Roteiro manual de publicação na TineHost | `docs/publicacao/tinehost.md` |
 | Plano da Fase 1 | `docs/plans/phase-01.md` |
 | Briefing mestre (fonte canônica) | `../med-coordination/CORA-MED-START-HERE.md` |
 | Contexto de negócio da MedConsultoria para a persona da Cora | `docs/negocio/entrevista-thais.md` |

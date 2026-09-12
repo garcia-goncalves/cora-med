@@ -1,19 +1,33 @@
 import { randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { CONTRACT_VERSION } from '@cora/contracts'
 
 import type { MotorPort } from '../engine/port.js'
 import { runTurn, DEFAULT_LIMITS, type TurnLimits } from '../run/turn.js'
 import type { ToolRegistry } from '../tools/registry.js'
+import { type DependenciasDeAuth, tratarEntrar, tratarSair, tratarSessao } from '../auth/rotas.js'
+import { lerCookie, nomeCookieSessao } from '../auth/cookie.js'
+import type { ArmazemDeSessoes } from '../auth/sessao.js'
 import { PedidoDeTurnoSchema, montarRequester } from './contrato.js'
 import { descreverParaLog, erroDeCategoria, traduzirFalha, type RespostaDeErro } from './erros.js'
+import { resolverArquivoEstatico, type ResultadoEstatico } from './estaticos.js'
 
 /** Teto do corpo de `POST /turno`. Sem isto, a primeira porta de rede desta casa é
  * derrubável com um único POST grande — antes de o motor ou o Zod verem qualquer coisa. */
 export const MAX_BYTES_CORPO = 64 * 1024
 
 export interface DependenciasHttp {
-  registry: ToolRegistry
+  /**
+   * Devolve o `ToolRegistry` da conta autenticada, ou `undefined` se o id não corresponde a
+   * nenhuma conta configurada (ex.: sessão emitida para uma conta removida depois). Um
+   * registry por conta (decisão D2 da Fase 4) — nunca compartilhado entre pessoas, porque
+   * cada um fala com o Workspace pelo token de delegação daquela conta.
+   */
+  registryDaConta: (idDaConta: string) => ToolRegistry | undefined
+  /** Onde `POST /turno` valida o cookie de sessão. Obrigatório: a partir da Etapa 10 da
+   * Fase 4, quem conversa com a Cora é sempre a pessoa autenticada. */
+  armazemDeSessoes: ArmazemDeSessoes
   /** Chamado UMA VEZ por requisição de turno. Nunca reaproveitar entre requisições —
    * ver o comentário dentro do handler de `POST /turno`. */
   criarMotor: () => MotorPort
@@ -32,9 +46,27 @@ export interface DependenciasHttp {
    * falsa: o socket é local, mas a origem que consegue falar com ele não precisa ser.
    */
   hostsPermitidos?: readonly string[]
+  /**
+   * Ausente: `/auth/*` some do roteamento (404 `rota_desconhecida`), como os 20 testes
+   * existentes deste arquivo já esperam. Presente: entra `POST /auth/entrar`,
+   * `POST /auth/sair` e `GET /auth/sessao`.
+   */
+  auth?: DependenciasDeAuth
+  /**
+   * Pasta com o build da SPA (Etapa 11 da Fase 4). Ausente: nenhuma rota estática existe,
+   * e qualquer caminho não reconhecido continua sendo `rota_desconhecida`, 404 tipado —
+   * o comportamento que os testes desta suíte já esperavam antes desta etapa. Presente:
+   * todo caminho que não bate com `/health`, `/turno` nem `/auth/*` passa por
+   * `resolverArquivoEstatico` (`estaticos.ts`), que decide entre servir o arquivo, cair
+   * no `index.html` (SPA) ou recusar.
+   */
+  raizEstatica?: string
 }
 
-const HOSTS_PERMITIDOS_PADRAO = ['127.0.0.1', 'localhost', '[::1]', '::1']
+/** Exportado para `boot.ts`: a lista configurável por `CORA_HOSTS_PERMITIDOS` (Etapa 11
+ * da Fase 4) sempre ACRESCENTA a esta lista, nunca a substitui — perder `localhost` ou
+ * `127.0.0.1` quebraria o desenvolvimento local. */
+export const HOSTS_PERMITIDOS_PADRAO = ['127.0.0.1', 'localhost', '[::1]', '::1']
 
 function enviar(res: ServerResponse, status: number, corpo: unknown): void {
   const texto = JSON.stringify(corpo)
@@ -69,6 +101,26 @@ async function lerCorpo(req: IncomingMessage): Promise<string> {
 
 class CorpoGrandeDemaisError extends Error {}
 
+/** Transmite o arquivo já resolvido por `resolverArquivoEstatico`. Não usa `enviar()`
+ * (fixa `Content-Type: application/json`) nem carrega o arquivo inteiro em memória antes
+ * de escrever — `createReadStream` + `pipe` funciona igual para o HTML de alguns KB e
+ * para um asset maior, sem duplicar o conteúdo em memória. */
+async function enviarArquivoEstatico(
+  res: ServerResponse,
+  resultado: Extract<ResultadoEstatico, { estado: 'resolvido' }>,
+): Promise<void> {
+  res.writeHead(200, {
+    'Content-Type': resultado.tipoDeConteudo,
+    'Cache-Control': resultado.cacheControl,
+  })
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    const leitura = createReadStream(resultado.caminhoAbsoluto)
+    leitura.on('error', rejectPromise)
+    leitura.on('end', resolvePromise)
+    leitura.pipe(res)
+  })
+}
+
 async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: DependenciasHttp): Promise<void> {
   const registrar = deps.registrar ?? ((linha: string) => console.error(linha))
   const controller = new AbortController()
@@ -76,6 +128,34 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
   res.on('close', onClose)
 
   try {
+    // A identidade de quem fala vem SEMPRE da sessão, nunca do corpo — checado antes de
+    // ler ou validar o corpo, para que um pedido sem sessão nunca chegue a gastar tempo
+    // com Zod nem com o motor.
+    const token = lerCookie(req.headers.cookie, nomeCookieSessao(deps.auth?.cookieInseguro))
+    if (!token) {
+      enviarErro(res, erroDeCategoria('sessao_ausente'))
+      return
+    }
+
+    const resultadoDaSessao = deps.armazemDeSessoes.validar(token)
+    if (resultadoDaSessao.estado === 'inexistente') {
+      enviarErro(res, erroDeCategoria('sessao_ausente'))
+      return
+    }
+    if (resultadoDaSessao.estado === 'expirada') {
+      enviarErro(res, erroDeCategoria('sessao_expirada'))
+      return
+    }
+
+    const idDaConta = resultadoDaSessao.sessao.idDaConta
+    const registry = deps.registryDaConta(idDaConta)
+    if (!registry) {
+      // Sessão válida, mas a conta some da configuração de quem chama — trata como se
+      // nunca tivesse existido, mesma disciplina de `auth/rotas.ts:tratarSessao`.
+      enviarErro(res, erroDeCategoria('sessao_ausente'))
+      return
+    }
+
     const contentType = req.headers['content-type'] ?? ''
     if (!contentType.toLowerCase().startsWith('application/json')) {
       enviarErro(res, erroDeCategoria('tipo_nao_suportado'))
@@ -101,22 +181,13 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
       return
     }
 
-    if (
-      corpoBruto === null ||
-      typeof corpoBruto !== 'object' ||
-      !('requester' in corpoBruto)
-    ) {
-      enviarErro(res, erroDeCategoria('requester_ausente'))
-      return
-    }
-
     const parsed = PedidoDeTurnoSchema.safeParse(corpoBruto)
     if (!parsed.success) {
       enviarErro(res, traduzirFalha(parsed.error))
       return
     }
 
-    const requester = montarRequester(parsed.data, deps.gerarRunId ?? randomUUID)
+    const requester = montarRequester(parsed.data, idDaConta, deps.gerarRunId ?? randomUUID)
 
     // Um motor NOVO por requisição, criado aqui dentro — nunca fora do handler. Um motor
     // de processo único (ex.: `const motor = deps.criarMotor()` no boot) levaria o
@@ -126,7 +197,7 @@ async function tratarTurno(req: IncomingMessage, res: ServerResponse, deps: Depe
 
     const outcome = await runTurn({
       motor,
-      registry: deps.registry,
+      registry,
       requester,
       messages: [{ role: 'user', content: parsed.data.mensagem }],
       limits: deps.limits ?? DEFAULT_LIMITS,
@@ -180,7 +251,37 @@ function hostnameDoCabecalho(hostHeader: string | undefined): string {
   return doisPontos === -1 ? hostHeader : hostHeader.slice(0, doisPontos)
 }
 
+/** Hosts de desenvolvimento local — únicos onde a comparação de origem ignora esquema e
+ * porta (ver comentário de `origemBate` abaixo). */
+const HOSTS_DEV_SEM_PORTA_EXATA = ['127.0.0.1', 'localhost', '[::1]', '::1']
+
+/**
+ * Confere o cabeçalho `Origin` contra o `Host` da requisição. Fora dos hosts de
+ * desenvolvimento local, exige igualdade EXATA com `https://<Host>` — esquema e porta
+ * incluídos, não só o hostname. Comparar só hostname (comportamento antigo) abria uma
+ * brecha de CSRF: uma origem com porta ou esquema diferente no mesmo host passava.
+ * Em `localhost`/`127.0.0.1` a comparação continua só por hostname — exceção de
+ * desenvolvimento, documentada, porque o ambiente local varia porta livremente.
+ */
+function origemBate(origemHeader: string, hostname: string, hostHeader: string): boolean {
+  let origemUrl: URL
+  try {
+    origemUrl = new URL(origemHeader)
+  } catch {
+    return false
+  }
+  if (HOSTS_DEV_SEM_PORTA_EXATA.includes(hostname)) {
+    return origemUrl.hostname === hostname
+  }
+  return origemHeader === `https://${hostHeader}`
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: DependenciasHttp): Promise<void> {
+  // Nada do que este processo serve é indexável — nem a SPA, nem `/health`, nem `/turno`
+  // (`estrategia_de_aquisicao`, item 1). Um lugar só, antes de qualquer roteamento, para
+  // que nenhuma resposta escape sem o cabeçalho.
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+
   try {
     const hostsPermitidos = deps.hostsPermitidos ?? HOSTS_PERMITIDOS_PADRAO
     const hostname = hostnameDoCabecalho(req.headers.host)
@@ -191,6 +292,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: De
 
     const url = new URL(req.url ?? '/', 'http://localhost')
     const metodo = req.method ?? 'GET'
+
+    // Verificação de origem no POST (decisão 8 da spec da Fase 4) — a parte de CSRF que
+    // `SameSite=Lax` não cobre. `Origin` AUSENTE não é recusa: cliente não-navegador,
+    // como o teste e o `curl`, não manda esse cabeçalho.
+    if (metodo === 'POST') {
+      const origem = req.headers.origin
+      if (origem && !origemBate(origem, hostname, req.headers.host ?? '')) {
+        enviarErro(res, erroDeCategoria('host_nao_permitido'))
+        return
+      }
+    }
 
     if (url.pathname === '/health') {
       if (metodo !== 'GET') {
@@ -207,6 +319,51 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse, deps: De
         return
       }
       await tratarTurno(req, res, deps)
+      return
+    }
+
+    if (deps.auth) {
+      if (url.pathname === '/auth/entrar') {
+        if (metodo !== 'POST') {
+          enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'POST' })
+          return
+        }
+        await tratarEntrar(req, res, deps.auth)
+        return
+      }
+
+      if (url.pathname === '/auth/sair') {
+        if (metodo !== 'POST') {
+          enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'POST' })
+          return
+        }
+        tratarSair(req, res, deps.auth)
+        return
+      }
+
+      if (url.pathname === '/auth/sessao') {
+        if (metodo !== 'GET') {
+          enviarErro(res, erroDeCategoria('metodo_nao_permitido'), { Allow: 'GET' })
+          return
+        }
+        tratarSessao(req, res, deps.auth)
+        return
+      }
+    }
+
+    // Fallback estático: só chega aqui quando o caminho não é `/health`, `/turno` nem
+    // `/auth/*`. Sem `raizEstatica` configurada, comportamento inalterado — 404 tipado,
+    // como os testes existentes desta suíte já esperam.
+    if (deps.raizEstatica && metodo === 'GET') {
+      const resultado = await resolverArquivoEstatico(url.pathname, deps.raizEstatica)
+      if (resultado.estado === 'resolvido') {
+        await enviarArquivoEstatico(res, resultado)
+        return
+      }
+      // 'nao_encontrado' e 'recusado' (tentativa de travessia de caminho) saem os dois
+      // como 404 tipado — quem tentou `..` não recebe pista nenhuma de que a defesa foi
+      // essa e não outra.
+      enviarErro(res, erroDeCategoria('rota_desconhecida'))
       return
     }
 

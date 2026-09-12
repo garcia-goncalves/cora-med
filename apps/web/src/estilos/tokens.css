@@ -1,0 +1,136 @@
+/* ---------- Claro (padrão) ---------- */
+:root {
+  color-scheme: light;
+
+  /* Cor — neutros (achado: index.css:9-11,22,26,46 — hsl convertido para oklch) */
+  --color-background: oklch(0.984 0.003 248);
+  --color-foreground: oklch(0.302 0.034 266);
+  --color-muted: oklch(0.968 0.007 248);
+  --color-muted-foreground: oklch(0.514 0.036 257);
+  --color-border: oklch(0.926 0.013 255);
+
+  /* Cor — ação (achado: Manual da Marca p.14 "fonte azul" #003591 e "fundo azul escuro" #002463) */
+  --color-primary: oklch(0.367 0.160 261);       /* #003591 */
+  --color-primary-foreground: oklch(0.99 0.004 261);
+  --color-primary-hover: oklch(0.284 0.119 260); /* #002463 */
+
+  /* Cor — foco (achado: index.css:48 --ring, tom azul-claro distinto do primary) */
+  --color-ring: oklch(0.72 0.14 235);
+
+  /* Cor — estados do resumo operacional (Fase 3). Ver direcao_visual_escolhida para
+     o que é achado direto e o que é extrapolação da Cora. */
+  --color-sucesso: oklch(0.484 0.102 158);       /* sem_pendencias — achado, index.css:39 (deriva de #30AD73 da marca) */
+  --color-sucesso-foreground: oklch(0.99 0.004 158);
+  --color-acento: oklch(0.500 0.132 234);        /* com_pendencias — hex #2DA8E1 da marca, escurecido por AA (extrapolação) */
+  --color-acento-foreground: oklch(0.99 0.004 234);
+  --color-alerta: oklch(0.523 0.111 71);         /* sincronizacao_incompleta — achado, index.css:43 (--warning) */
+  --color-alerta-foreground: oklch(0.99 0.004 71); /* branco — achado, index.css:44 (--warning-foreground: 0 0% 100%) */
+  --color-erro: oklch(0.549 0.206 27);           /* erro_de_acesso — achado, index.css:34 (--destructive) */
+  --color-erro-foreground: oklch(0.99 0.004 27);
+  --color-neutro-estado: oklch(0.514 0.036 257); /* sem_registros — mesma cor de muted-foreground, de propósito */
+
+  /* Tipografia (achado: Manual da Marca p.16 + index.css:99, @fontsource/montserrat) */
+  --font-sans: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-xs: 0.75rem;   /* 12px */
+  --text-sm: 0.875rem;  /* 14px */
+  --text-base: 1rem;    /* 16px */
+  --text-lg: 1.25rem;   /* 20px */
+  --text-xl: 1.5625rem; /* 25px */
+  --font-weight-normal: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+
+  /* Espaçamento (sem fonte no Workspace para esta escala — mantida do desenho anterior) */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px — respiro lateral mínimo em qualquer largura */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-12: 3rem;    /* 48px */
+  --space-16: 4rem;    /* 64px */
+
+  /* Forma (achado: index.css:54 --radius: 0.625rem; escala de tailwind-preset.js:72-77) */
+  --radius-sm: 0.5rem;   /* 8px — campo, botão, bolha (um degrau abaixo do valor real) */
+  --radius-md: 0.625rem; /* 10px — cartão, modal — valor literal de --radius em produção */
+  --radius-full: 9999px; /* avatar, indicador de estado */
+
+  /* Sombra (achado: index.css:67-72, "tom azulado da marca" — hsl(218 55% 22%) convertido) */
+  --shadow-card: 0 1px 2px oklch(0.31 0.08 261 / 0.08);
+  --shadow-flutuante: 0 8px 24px oklch(0.31 0.08 261 / 0.18);
+
+  --focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+
+  /* Toque */
+  --target-tocavel-min: 2.75rem; /* 44px */
+
+  /* Ritmo da conversa */
+  --gap-mesma-autoria: var(--space-2);   /* 8px entre mensagens do mesmo autor */
+  --gap-troca-autoria: var(--space-6);   /* 24px na troca de autor */
+}
+
+/* ---------- Escuro ---------- */
+/* Extrapolado pela Cora — o Workspace real NÃO tem tema escuro (index.css:88-90: removido
+   como código morto). Mesma matiz/hue de cada token claro, L invertido, medido contra AA. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-background: oklch(0.16 0.010 256);
+    --color-foreground: oklch(0.95 0.006 256);
+    --color-muted: oklch(0.22 0.012 256);
+    --color-muted-foreground: oklch(0.70 0.012 256);
+    --color-border: oklch(0.31 0.014 256);
+
+    --color-primary: oklch(0.67 0.110 261);
+    --color-primary-foreground: oklch(0.15 0.012 261);
+    --color-primary-hover: oklch(0.74 0.110 261);
+    --color-ring: oklch(0.78 0.110 235);
+
+    --color-sucesso: oklch(0.72 0.130 158);
+    --color-sucesso-foreground: oklch(0.15 0.020 158);
+    --color-acento: oklch(0.72 0.100 234);
+    --color-acento-foreground: oklch(0.15 0.020 234);
+    --color-alerta: oklch(0.78 0.130 71);
+    --color-alerta-foreground: oklch(0.18 0.025 71);
+    --color-erro: oklch(0.70 0.170 27);
+    --color-erro-foreground: oklch(0.15 0.020 27);
+    --color-neutro-estado: oklch(0.70 0.012 256);
+
+    /* Elevação no escuro é fundo mais claro (--color-muted), não sombra mais forte */
+    --shadow-card: 0 1px 2px oklch(0 0 0 / 0.35);
+    --shadow-flutuante: 0 8px 24px oklch(0 0 0 / 0.45);
+
+    --focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-background: oklch(0.16 0.010 256);
+  --color-foreground: oklch(0.95 0.006 256);
+  --color-muted: oklch(0.22 0.012 256);
+  --color-muted-foreground: oklch(0.70 0.012 256);
+  --color-border: oklch(0.31 0.014 256);
+
+  --color-primary: oklch(0.67 0.110 261);
+  --color-primary-foreground: oklch(0.15 0.012 261);
+  --color-primary-hover: oklch(0.74 0.110 261);
+  --color-ring: oklch(0.78 0.110 235);
+
+  --color-sucesso: oklch(0.72 0.130 158);
+  --color-sucesso-foreground: oklch(0.15 0.020 158);
+  --color-acento: oklch(0.72 0.100 234);
+  --color-acento-foreground: oklch(0.15 0.020 234);
+  --color-alerta: oklch(0.78 0.130 71);
+  --color-alerta-foreground: oklch(0.18 0.025 71);
+  --color-erro: oklch(0.70 0.170 27);
+  --color-erro-foreground: oklch(0.15 0.020 27);
+  --color-neutro-estado: oklch(0.70 0.012 256);
+
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-flutuante: 0 8px 24px oklch(0 0 0 / 0.45);
+}

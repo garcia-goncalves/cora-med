@@ -1,0 +1,755 @@
+<!doctype html>
+<title>Prévia visual — Cora</title>
+<!--
+  Fonte: a aplicação real da MedConsultoria AUTO-HOSPEDA Montserrat via @fontsource/montserrat
+  (apps/web/package.json), não carrega de um link do Google Fonts. O <link> abaixo é só
+  conveniência desta prévia estática (para renderizar sem exigir o pacote local) — quem
+  implementar a Fase 4 deve replicar @fontsource/montserrat (ou equivalente auto-hospedado),
+  não este <link>. Ver design.md, seção "Tipografia", para a citação completa.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
+<style>
+  /* ============================================================
+     Tokens — copiados literalmente de design.md (identidade visual
+     REAL da MedConsultoria: Manual da Marca p.14/16 + produção real
+     em packages/ui/tailwind-preset.js e apps/web/src/index.css).
+     Nenhum valor novo aqui.
+     ============================================================ */
+  :root {
+    color-scheme: light;
+
+    --color-background: oklch(0.984 0.003 248);
+    --color-foreground: oklch(0.302 0.034 266);
+    --color-muted: oklch(0.968 0.007 248);
+    --color-muted-foreground: oklch(0.514 0.036 257);
+    --color-border: oklch(0.926 0.013 255);
+
+    --color-primary: oklch(0.367 0.160 261);       /* #003591 — Manual da Marca p.14 "fonte azul" */
+    --color-primary-foreground: oklch(0.99 0.004 261);
+    --color-primary-hover: oklch(0.284 0.119 260); /* #002463 — Manual da Marca p.14 "fundo azul escuro" */
+    --color-ring: oklch(0.72 0.14 235);
+
+    --color-sucesso: oklch(0.484 0.102 158);        /* deriva de #30AD73 da marca */
+    --color-sucesso-foreground: oklch(0.99 0.004 158);
+    --color-acento: oklch(0.500 0.132 234);         /* #2DA8E1 da marca, escurecido por AA */
+    --color-acento-foreground: oklch(0.99 0.004 234);
+    --color-alerta: oklch(0.523 0.111 71);
+    --color-alerta-foreground: oklch(0.99 0.004 71);
+    --color-erro: oklch(0.549 0.206 27);
+    --color-erro-foreground: oklch(0.99 0.004 27);
+    --color-neutro-estado: oklch(0.514 0.036 257);
+
+    --font-sans: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.25rem;
+    --text-xl: 1.5625rem;
+    --font-weight-normal: 400;
+    --font-weight-medium: 600;
+    --font-weight-bold: 700;
+    --leading-tight: 1.2;
+    --leading-normal: 1.5;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+
+    --radius-sm: 0.5rem;
+    --radius-md: 0.625rem; /* 10px — valor literal de --radius em produção (index.css:54) */
+    --radius-full: 9999px;
+
+    --shadow-card: 0 1px 2px oklch(0.31 0.08 261 / 0.08);
+    --shadow-flutuante: 0 8px 24px oklch(0.31 0.08 261 / 0.18);
+
+    --focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+
+    --target-tocavel-min: 2.75rem;
+    --gap-mesma-autoria: var(--space-2);
+    --gap-troca-autoria: var(--space-6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --color-background: oklch(0.16 0.010 256);
+      --color-foreground: oklch(0.95 0.006 256);
+      --color-muted: oklch(0.22 0.012 256);
+      --color-muted-foreground: oklch(0.70 0.012 256);
+      --color-border: oklch(0.31 0.014 256);
+      --color-primary: oklch(0.67 0.110 261);
+      --color-primary-foreground: oklch(0.15 0.012 261);
+      --color-primary-hover: oklch(0.74 0.110 261);
+      --color-ring: oklch(0.78 0.110 235);
+      --color-sucesso: oklch(0.72 0.130 158);
+      --color-sucesso-foreground: oklch(0.15 0.020 158);
+      --color-acento: oklch(0.72 0.100 234);
+      --color-acento-foreground: oklch(0.15 0.020 234);
+      --color-alerta: oklch(0.78 0.130 71);
+      --color-alerta-foreground: oklch(0.18 0.025 71);
+      --color-erro: oklch(0.70 0.170 27);
+      --color-erro-foreground: oklch(0.15 0.020 27);
+      --color-neutro-estado: oklch(0.70 0.012 256);
+      --shadow-card: 0 1px 2px oklch(0 0 0 / 0.35);
+      --shadow-flutuante: 0 8px 24px oklch(0 0 0 / 0.45);
+      --focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-background: oklch(0.16 0.010 256);
+    --color-foreground: oklch(0.95 0.006 256);
+    --color-muted: oklch(0.22 0.012 256);
+    --color-muted-foreground: oklch(0.70 0.012 256);
+    --color-border: oklch(0.31 0.014 256);
+    --color-primary: oklch(0.67 0.110 261);
+    --color-primary-foreground: oklch(0.15 0.012 261);
+    --color-primary-hover: oklch(0.74 0.110 261);
+    --color-ring: oklch(0.78 0.110 235);
+    --color-sucesso: oklch(0.72 0.130 158);
+    --color-sucesso-foreground: oklch(0.15 0.020 158);
+    --color-acento: oklch(0.72 0.100 234);
+    --color-acento-foreground: oklch(0.15 0.020 234);
+    --color-alerta: oklch(0.78 0.130 71);
+    --color-alerta-foreground: oklch(0.18 0.025 71);
+    --color-erro: oklch(0.70 0.170 27);
+    --color-erro-foreground: oklch(0.15 0.020 27);
+    --color-neutro-estado: oklch(0.70 0.012 256);
+    --shadow-card: 0 1px 2px oklch(0 0 0 / 0.35);
+    --shadow-flutuante: 0 8px 24px oklch(0 0 0 / 0.45);
+  }
+
+  /* ============================================================
+     Página de revisão (o "estúdio" ao redor das telas). Usa os
+     mesmos tokens do produto — nenhum hex inventado.
+     ============================================================ */
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--color-muted);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    padding-inline: max(16px, env(safe-area-inset-left));
+    padding-block: var(--space-8) var(--space-16);
+  }
+
+  h1, h2, h3 { text-wrap: balance; font-weight: var(--font-weight-bold); margin: 0; }
+
+  .wrap { max-width: 1100px; margin-inline: auto; display: flex; flex-direction: column; gap: var(--space-16); }
+
+  /* --- barra superior --- */
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: var(--space-3);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    box-shadow: var(--shadow-card);
+    margin-top: calc(-1 * var(--space-8));
+    margin-inline: calc(-1 * var(--space-2));
+  }
+  .toolbar .titulo { display: flex; align-items: center; gap: var(--space-2); }
+  .toolbar .titulo strong { font-size: var(--text-sm); font-weight: var(--font-weight-medium); }
+  .toolbar .titulo span { font-size: var(--text-xs); color: var(--color-muted-foreground); }
+  .toolbar .controles { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+  .botao-toggle {
+    font-family: inherit; font-size: var(--text-sm); font-weight: var(--font-weight-medium);
+    min-height: var(--target-tocavel-min);
+    padding-inline: var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-background);
+    color: var(--color-foreground);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: var(--space-2);
+  }
+  .botao-toggle[aria-pressed="true"] {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+  .botao-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  /* --- seções --- */
+  section { display: flex; flex-direction: column; gap: var(--space-4); }
+  .rotulo-secao {
+    display: flex; align-items: baseline; gap: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-2);
+  }
+  .rotulo-secao .num {
+    font-size: var(--text-xs); font-weight: var(--font-weight-bold);
+    color: var(--color-primary); letter-spacing: 0.04em;
+  }
+  .rotulo-secao h2 { font-size: var(--text-xl); }
+  .rotulo-secao p { margin: 0; font-size: var(--text-sm); color: var(--color-muted-foreground); }
+
+  .grade-telas {
+    display: flex; flex-wrap: wrap; gap: var(--space-8);
+    align-items: flex-start;
+  }
+  .legenda-tela {
+    font-size: var(--text-xs); font-weight: var(--font-weight-medium);
+    color: var(--color-muted-foreground); text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: var(--space-2);
+  }
+  .coluna-tela { display: flex; flex-direction: column; }
+
+  /* ============================================================
+     Moldura de telefone — encolhe para 360px no modo "ver como
+     celular". max-width em vez de width fixo: nunca ultrapassa a
+     tela real em viewport estreito.
+     ============================================================ */
+  .celular {
+    width: 390px;
+    max-width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 28px;
+    padding: 10px;
+    background: var(--color-foreground);
+    box-shadow: var(--shadow-flutuante);
+    transition: width 0.2s ease;
+  }
+  body.modo-360 .celular { width: 360px; }
+
+  .tela {
+    background: var(--color-background);
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 640px;
+    position: relative;
+    font-size: var(--text-base);
+  }
+
+  /* --- login --- */
+  .tela-login { justify-content: center; align-items: stretch; padding: var(--space-8) var(--space-4); gap: var(--space-6); }
+  .tela-login .marca { display: flex; justify-content: center; margin-bottom: var(--space-2); }
+  .campo { display: flex; flex-direction: column; gap: var(--space-1); }
+  .campo label { font-size: var(--text-sm); font-weight: var(--font-weight-medium); }
+  .campo input {
+    font: inherit; font-size: var(--text-base);
+    min-height: var(--target-tocavel-min);
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-background);
+    color: var(--color-foreground);
+  }
+  .campo input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .campo input[readonly] { background: var(--color-muted); color: var(--color-muted-foreground); }
+  .ajuda { font-size: var(--text-xs); color: var(--color-muted-foreground); }
+  .botao-primario {
+    font: inherit; font-weight: var(--font-weight-medium); font-size: var(--text-base);
+    min-height: var(--target-tocavel-min);
+    border: none; border-radius: var(--radius-sm);
+    background: var(--color-primary); color: var(--color-primary-foreground);
+    cursor: pointer;
+  }
+  .botao-primario:disabled { opacity: 0.7; }
+  .botao-primario:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .erro-formulario {
+    display: flex; gap: var(--space-2); align-items: flex-start;
+    font-size: var(--text-sm); color: var(--color-erro);
+    padding: var(--space-3); border-radius: var(--radius-sm);
+    background: color-mix(in oklch, var(--color-erro) 10%, var(--color-background));
+  }
+  .erro-formulario svg { flex: none; margin-top: 2px; }
+
+  /* --- chat --- */
+  .tela-chat { padding: 0; }
+  .cabecalho-chat {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-background);
+  }
+  .cabecalho-chat .textos { display: flex; flex-direction: column; line-height: 1.1; }
+  .cabecalho-chat strong { font-size: var(--text-base); }
+  .cabecalho-chat .legenda-opcional { font-size: var(--text-xs); color: var(--color-muted-foreground); }
+  body.modo-360 .legenda-opcional { display: none; }
+
+  .lista-mensagens {
+    flex: 1;
+    padding: var(--space-4);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .msg { max-width: 85%; }
+  .msg + .msg.mesma-autoria { margin-top: var(--gap-mesma-autoria); }
+  .msg + .msg.troca-autoria { margin-top: var(--gap-troca-autoria); }
+
+  .msg.pessoa { align-self: flex-end; text-align: right; }
+  .msg.cora { align-self: flex-start; }
+
+  .bolha {
+    display: inline-block; text-align: left;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+  }
+  .msg.pessoa .bolha { background: var(--color-primary); color: var(--color-primary-foreground); }
+  .msg.cora .bolha { background: var(--color-muted); color: var(--color-foreground); }
+  .rotulo-envio { display: block; font-size: var(--text-xs); color: var(--color-muted-foreground); margin-top: var(--space-1); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    font-size: var(--text-xs); font-weight: var(--font-weight-medium);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    margin-bottom: var(--space-2);
+  }
+  .chip svg { flex: none; }
+  .chip-sucesso { background: color-mix(in oklch, var(--color-sucesso) 16%, var(--color-background)); color: var(--color-sucesso); }
+  .chip-acento { background: color-mix(in oklch, var(--color-acento) 16%, var(--color-background)); color: var(--color-acento); }
+  .chip-alerta { background: var(--color-alerta); color: var(--color-alerta-foreground); }
+  .chip-erro { background: color-mix(in oklch, var(--color-erro) 14%, var(--color-background)); color: var(--color-erro); }
+  .chip-neutro { background: var(--color-muted); color: var(--color-neutro-estado); }
+
+  .item-pendencia { font-size: var(--text-sm); padding-block: var(--space-1); }
+  .item-pendencia .meta { display: block; color: var(--color-muted-foreground); font-size: var(--text-xs); }
+
+  .digitando { font-size: var(--text-sm); color: var(--color-muted-foreground); display: flex; align-items: center; gap: var(--space-2); }
+  .digitando .pontos span {
+    display: inline-block; width: 5px; height: 5px; border-radius: var(--radius-full);
+    background: var(--color-muted-foreground); margin-inline-end: 2px; opacity: 0.4;
+    animation: pisca 1.2s infinite ease-in-out;
+  }
+  .digitando .pontos span:nth-child(2) { animation-delay: 0.15s; }
+  .digitando .pontos span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes pisca { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .digitando .pontos span { animation: none; opacity: 0.7; } }
+
+  .rodape-entrada {
+    display: flex; gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-background);
+  }
+  .rodape-entrada input {
+    flex: 1; font: inherit; font-size: var(--text-base);
+    min-height: var(--target-tocavel-min);
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-background); color: var(--color-foreground);
+  }
+  .rodape-entrada input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .rodape-entrada button {
+    font: inherit; font-weight: var(--font-weight-medium);
+    min-height: var(--target-tocavel-min); padding-inline: var(--space-4);
+    border: none; border-radius: var(--radius-sm);
+    background: var(--color-primary); color: var(--color-primary-foreground); cursor: pointer;
+    flex: none;
+  }
+
+  /* --- erro de conexão --- */
+  .banner-alerta {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-alerta); color: var(--color-alerta-foreground);
+    font-size: var(--text-sm); font-weight: var(--font-weight-medium);
+  }
+  .banner-alerta svg { flex: none; }
+
+  .tela-erro-cheia {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--space-4); padding: var(--space-8) var(--space-4); text-align: center;
+  }
+  .tela-erro-cheia svg { width: 140px; height: auto; }
+  .tela-erro-cheia p { margin: 0; font-size: var(--text-base); color: var(--color-foreground); max-width: 30ch; }
+  .botao-erro {
+    font: inherit; font-weight: var(--font-weight-medium); font-size: var(--text-base);
+    min-height: var(--target-tocavel-min); width: 100%; max-width: 260px;
+    border: none; border-radius: var(--radius-sm);
+    background: var(--color-erro); color: var(--color-erro-foreground); cursor: pointer;
+  }
+
+  /* --- paleta --- */
+  .grade-paleta {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: var(--space-4);
+  }
+  .amostra {
+    border: 1px solid var(--color-border); border-radius: var(--radius-md);
+    overflow: hidden; background: var(--color-background); box-shadow: var(--shadow-card);
+  }
+  .amostra .cor { height: 64px; }
+  .amostra .legenda { padding: var(--space-2) var(--space-3); display: flex; flex-direction: column; gap: 2px; }
+  .amostra .nome-token { font-size: var(--text-sm); font-weight: var(--font-weight-medium); font-family: monospace; }
+  .amostra .papel { font-size: var(--text-xs); color: var(--color-muted-foreground); }
+
+  footer.nota { font-size: var(--text-xs); color: var(--color-muted-foreground); text-align: center; }
+</style>
+
+<div class="wrap">
+
+  <div class="toolbar">
+    <div class="titulo">
+      <strong>Prévia visual — Fase 4</strong>
+      <span>Identidade visual real da MedConsultoria (Manual da Marca + produção do Workspace) · só para aprovação, não é o código final</span>
+    </div>
+    <div class="controles">
+      <button class="botao-toggle" id="toggle-360" aria-pressed="false" type="button">Ver em 360px</button>
+      <button class="botao-toggle" id="toggle-tema" aria-pressed="false" type="button">Tema escuro</button>
+    </div>
+  </div>
+
+  <!-- ================= 1. PALETA ================= -->
+  <section id="paleta">
+    <div class="rotulo-secao">
+      <span class="num">01</span>
+      <div>
+        <h2>Paleta</h2>
+        <p>Tokens de <code>design.md</code>, identidade visual real da MedConsultoria (Manual da Marca p.14 + produção do Workspace) — cada amostra abaixo diz de onde veio.</p>
+      </div>
+    </div>
+    <div class="grade-paleta">
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-primary)"></div>
+        <div class="legenda"><span class="nome-token">--color-primary</span><span class="papel">#003591 "fonte azul" — Manual p.14. Ação primária: "Entrar", "Enviar"</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-primary-hover)"></div>
+        <div class="legenda"><span class="nome-token">--color-primary-hover</span><span class="papel">#002463 "fundo azul escuro" — Manual p.14</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-ring); border:1px solid var(--color-border)"></div>
+        <div class="legenda"><span class="nome-token">--color-ring</span><span class="papel">Anel de foco — achado, index.css:48 (azul-claro da marca)</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-background); border-bottom:1px solid var(--color-border)"></div>
+        <div class="legenda"><span class="nome-token">--color-background</span><span class="papel">Fundo — achado, index.css:9</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-foreground)"></div>
+        <div class="legenda"><span class="nome-token">--color-foreground</span><span class="papel">Texto principal — achado, index.css:10</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-muted)"></div>
+        <div class="legenda"><span class="nome-token">--color-muted</span><span class="papel">Superfície discreta — bolha da Cora</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-border)"></div>
+        <div class="legenda"><span class="nome-token">--color-border</span><span class="papel">Borda, divisor</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-sucesso)"></div>
+        <div class="legenda"><span class="nome-token">--color-sucesso</span><span class="papel">sem_pendencias — deriva de #30AD73 (verde da marca), já escurecido em produção</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-acento)"></div>
+        <div class="legenda"><span class="nome-token">--color-acento</span><span class="papel">com_pendencias — #2DA8E1 (azul-claro da marca), escurecido por AA</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-alerta)"></div>
+        <div class="legenda"><span class="nome-token">--color-alerta</span><span class="papel">sincronizacao_incompleta — achado, index.css:43 (--warning)</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-erro)"></div>
+        <div class="legenda"><span class="nome-token">--color-erro</span><span class="papel">erro_de_acesso — achado, index.css:34 (--destructive)</span></div>
+      </div>
+      <div class="amostra">
+        <div class="cor" style="background:var(--color-neutro-estado)"></div>
+        <div class="legenda"><span class="nome-token">--color-neutro-estado</span><span class="papel">sem_registros — de propósito, igual a muted-foreground</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2. LOGIN ================= -->
+  <section id="login">
+    <div class="rotulo-secao">
+      <span class="num">02</span>
+      <div>
+        <h2>Tela de login</h2>
+        <p>Coluna única centralizada, sem imagem lateral. Erro nunca diz qual campo errou.</p>
+      </div>
+    </div>
+    <div class="grade-telas">
+      <div class="coluna-tela">
+        <span class="legenda-tela">Normal</span>
+        <div class="celular">
+          <div class="tela tela-login">
+            <div class="marca">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 40" role="img" aria-label="Cora" width="140" height="40">
+                <title>Cora</title>
+                <rect x="0" y="0" width="40" height="40" rx="9" fill="var(--color-primary)"/>
+                <path d="M30.65,27.46 A13,13 0 1,1 30.65,12.54" fill="none" stroke="var(--color-primary-foreground)" stroke-width="6" stroke-linecap="round"/>
+                <text x="52" y="28" font-family="Montserrat, system-ui, sans-serif" font-size="26" font-weight="600" letter-spacing="-0.02em" fill="var(--color-foreground)">Cora</text>
+              </svg>
+            </div>
+            <div class="campo">
+              <label for="email-1">E-mail</label>
+              <input id="email-1" type="email" placeholder="voce@clinica.com.br">
+              <span class="ajuda">Use o e-mail cadastrado pelo administrador.</span>
+            </div>
+            <div class="campo">
+              <label for="senha-1">Senha</label>
+              <input id="senha-1" type="password">
+            </div>
+            <button class="botao-primario" type="button">Entrar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="coluna-tela">
+        <span class="legenda-tela">Senha errada</span>
+        <div class="celular">
+          <div class="tela tela-login">
+            <div class="marca">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 40" role="img" aria-label="Cora" width="140" height="40">
+                <title>Cora</title>
+                <rect x="0" y="0" width="40" height="40" rx="9" fill="var(--color-primary)"/>
+                <path d="M30.65,27.46 A13,13 0 1,1 30.65,12.54" fill="none" stroke="var(--color-primary-foreground)" stroke-width="6" stroke-linecap="round"/>
+                <text x="52" y="28" font-family="Montserrat, system-ui, sans-serif" font-size="26" font-weight="600" letter-spacing="-0.02em" fill="var(--color-foreground)">Cora</text>
+              </svg>
+            </div>
+            <div class="campo">
+              <label for="email-2">E-mail</label>
+              <input id="email-2" type="email" value="SYNTH-thais@clinica-demo.teste">
+              <span class="ajuda">Use o e-mail cadastrado pelo administrador.</span>
+            </div>
+            <div class="campo">
+              <label for="senha-2">Senha</label>
+              <input id="senha-2" type="password" placeholder="" value="">
+            </div>
+            <button class="botao-primario" type="button">Entrar</button>
+            <div class="erro-formulario">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--color-erro)"/><line x1="8" y1="4.5" x2="8" y2="8.5" stroke="var(--color-erro-foreground)" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11" r="0.9" fill="var(--color-erro-foreground)"/></svg>
+              <span>E-mail ou senha não conferem. Confira os dois campos e tente de novo.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. CHAT ================= -->
+  <section id="chat">
+    <div class="rotulo-secao">
+      <span class="num">03</span>
+      <div>
+        <h2>Tela de chat</h2>
+        <p>Chip de estado acima do texto — ícone + rótulo, a cor é reforço. <code>com_pendencias</code> (teal) nunca se confunde com o azul da ação primária.</p>
+      </div>
+    </div>
+    <div class="grade-telas">
+      <div class="coluna-tela">
+        <span class="legenda-tela">Conversa — com_pendencias e sem_pendencias</span>
+        <div class="celular">
+          <div class="tela tela-chat">
+            <div class="cabecalho-chat">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="32" height="32" role="img" aria-label="Cora">
+                <rect width="40" height="40" rx="9" fill="var(--color-primary)"/>
+                <path d="M30.65,27.46 A13,13 0 1,1 30.65,12.54" fill="none" stroke="var(--color-primary-foreground)" stroke-width="6" stroke-linecap="round"/>
+              </svg>
+              <div class="textos">
+                <strong>Cora</strong>
+                <span class="legenda-opcional">Assistente da MedConsultoria</span>
+              </div>
+            </div>
+
+            <div class="lista-mensagens">
+
+              <div class="msg pessoa">
+                <div class="bolha">Como estão minhas pendências?</div>
+              </div>
+
+              <div class="msg cora troca-autoria">
+                <span class="chip chip-acento">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="4" width="10" height="1.6" rx="0.8" fill="currentColor"/><rect x="3" y="7.2" width="10" height="1.6" rx="0.8" fill="currentColor"/><rect x="3" y="10.4" width="7" height="1.6" rx="0.8" fill="currentColor"/></svg>
+                  Com pendências
+                </span>
+                <div class="bolha">
+                  Você tem 4 tarefa(s) pendente(s):
+                  <div class="item-pendencia">Retorno de Dra. Camila Bittencourt Teixeira, convênio Amparo Saúde, 14h30<span class="meta">prioridade alta · SYNTH-TASK-0142</span></div>
+                  <div class="item-pendencia">Encaixe de avaliação inicial, convênio particular, aguardando confirmação de horário<span class="meta">prioridade média · SYNTH-TASK-0143</span></div>
+                  <div class="item-pendencia">Renovação de credenciamento com convênio Vitalis Planos de Saúde<span class="meta">prioridade alta · SYNTH-TASK-0144</span></div>
+                </div>
+              </div>
+
+              <div class="msg pessoa troca-autoria">
+                <div class="bolha">E na semana que vem?</div>
+              </div>
+
+              <div class="msg cora troca-autoria">
+                <div class="digitando">
+                  Cora está digitando…
+                  <span class="pontos"><span></span><span></span><span></span></span>
+                </div>
+              </div>
+
+              <div class="msg cora mesma-autoria" style="margin-top:var(--gap-mesma-autoria)">
+                <span class="chip chip-sucesso">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5,8.5 L6.5,11.5 L12.5,4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Sem pendências
+                </span>
+                <div class="bolha">Consultei a lista inteira: há 6 tarefa(s), e nenhuma está parada esperando por você.</div>
+              </div>
+
+            </div>
+
+            <div class="rodape-entrada">
+              <input type="text" placeholder="Escreva uma mensagem…" aria-label="Escreva uma mensagem">
+              <button type="button">Enviar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="coluna-tela">
+        <span class="legenda-tela">Erro de envio — mensagem nunca some</span>
+        <div class="celular">
+          <div class="tela tela-chat">
+            <div class="cabecalho-chat">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="32" height="32" role="img" aria-label="Cora">
+                <rect width="40" height="40" rx="9" fill="var(--color-primary)"/>
+                <path d="M30.65,27.46 A13,13 0 1,1 30.65,12.54" fill="none" stroke="var(--color-primary-foreground)" stroke-width="6" stroke-linecap="round"/>
+              </svg>
+              <div class="textos">
+                <strong>Cora</strong>
+                <span class="legenda-opcional">Assistente da MedConsultoria</span>
+              </div>
+            </div>
+
+            <div class="lista-mensagens">
+              <div class="msg cora">
+                <span class="chip chip-neutro">Sem registros</span>
+                <div class="bolha">Consultei a lista inteira e o Workspace não devolveu nenhuma tarefa.</div>
+              </div>
+
+              <div class="msg pessoa troca-autoria">
+                <div class="bolha">Quais convênios têm consulta marcada essa semana?</div>
+                <span class="rotulo-envio" style="color:var(--color-erro)">Não foi enviada. A conexão falhou no meio do caminho.</span>
+                <div style="margin-top:var(--space-2)">
+                  <button class="botao-toggle" type="button" style="border-color:var(--color-erro); color:var(--color-erro); min-height:36px;">Tentar de novo</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="rodape-entrada">
+              <input type="text" value="e sobre o mês que vem?" aria-label="Escreva uma mensagem">
+              <button type="button">Enviar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. ERRO DE CONEXÃO ================= -->
+  <section id="erro-conexao">
+    <div class="rotulo-secao">
+      <span class="num">04</span>
+      <div>
+        <h2>Erro de conexão</h2>
+        <p>Dois casos distintos, nunca fundidos: banner reversível de "sem internet" e tela cheia de "servidor fora do ar".</p>
+      </div>
+    </div>
+    <div class="grade-telas">
+      <div class="coluna-tela">
+        <span class="legenda-tela">Sem internet — banner, conversa continua usável</span>
+        <div class="celular">
+          <div class="tela tela-chat">
+            <div class="cabecalho-chat">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="32" height="32" role="img" aria-label="Cora">
+                <rect width="40" height="40" rx="9" fill="var(--color-primary)"/>
+                <path d="M30.65,27.46 A13,13 0 1,1 30.65,12.54" fill="none" stroke="var(--color-primary-foreground)" stroke-width="6" stroke-linecap="round"/>
+              </svg>
+              <div class="textos"><strong>Cora</strong><span class="legenda-opcional">Assistente da MedConsultoria</span></div>
+            </div>
+            <div class="banner-alerta">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2,6 a8.5,8.5 0 0 1 12,0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.55"/><path d="M4.3,8.6 a5,5 0 0 1 7.4,0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.6" r="1" fill="currentColor"/></svg>
+              Sem conexão com a internet. Suas mensagens serão enviadas quando ela voltar.
+            </div>
+            <div class="lista-mensagens">
+              <div class="msg pessoa">
+                <div class="bolha">Confirma o horário da Dra. Camila?</div>
+                <span class="rotulo-envio">Na fila — será enviada quando a conexão voltar</span>
+              </div>
+            </div>
+            <div class="rodape-entrada">
+              <input type="text" placeholder="Escreva uma mensagem…" aria-label="Escreva uma mensagem">
+              <button type="button">Enviar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="coluna-tela">
+        <span class="legenda-tela">Servidor fora do ar — tela cheia</span>
+        <div class="celular">
+          <div class="tela tela-chat">
+            <div class="cabecalho-chat">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="32" height="32" role="img" aria-label="Cora">
+                <rect width="40" height="40" rx="9" fill="var(--color-primary)"/>
+                <path d="M30.65,27.46 A13,13 0 1,1 30.65,12.54" fill="none" stroke="var(--color-primary-foreground)" stroke-width="6" stroke-linecap="round"/>
+              </svg>
+              <div class="textos"><strong>Cora</strong><span class="legenda-opcional">Assistente da MedConsultoria</span></div>
+            </div>
+            <div class="tela-erro-cheia">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" role="img" aria-hidden="true">
+                <path fill="var(--color-erro)" opacity="0.07" d="M120,30c30,0,58,13,74,39c15,25,14,58,-2,83c-16,24,-46,38,-76,36
+                     c-30,-2,-58,-20,-70,-47c-12,-27,-5,-60,17,-80C81,42,100,30,120,30Z"/>
+                <path d="M84,120 a51,51 0 0 1 72,0" fill="none" stroke="var(--color-muted-foreground)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+                <path d="M99,132 a29,29 0 0 1 42,0" fill="none" stroke="var(--color-muted-foreground)" stroke-width="6" stroke-linecap="round" opacity="0.55"/>
+                <circle cx="120" cy="146" r="5" fill="var(--color-muted-foreground)"/>
+                <line x1="66" y1="96" x2="174" y2="176" stroke="var(--color-erro)" stroke-width="7" stroke-linecap="round"/>
+                <circle cx="168" cy="70" r="24" fill="var(--color-erro)"/>
+                <line x1="168" y1="60" x2="168" y2="72" stroke="var(--color-erro-foreground)" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="168" cy="80" r="2.6" fill="var(--color-erro-foreground)"/>
+              </svg>
+              <p>Não conseguimos falar com o servidor da Cora agora. Tente de novo em alguns minutos.</p>
+              <button class="botao-erro" type="button">Tentar de novo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="nota">
+    Prévia estática para aprovação — não é o código de produção. Dados de demonstração com prefixo <code>SYNTH-</code>, conforme <code>design.md</code>.
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var btn360 = document.getElementById('toggle-360');
+    var btnTema = document.getElementById('toggle-tema');
+
+    btn360.addEventListener('click', function () {
+      var ativo = document.body.classList.toggle('modo-360');
+      btn360.setAttribute('aria-pressed', String(ativo));
+    });
+
+    btnTema.addEventListener('click', function () {
+      var raiz = document.documentElement;
+      var escuro = raiz.getAttribute('data-theme') === 'dark';
+      if (escuro) {
+        raiz.removeAttribute('data-theme');
+        btnTema.setAttribute('aria-pressed', 'false');
+      } else {
+        raiz.setAttribute('data-theme', 'dark');
+        btnTema.setAttribute('aria-pressed', 'true');
+      }
+    });
+  })();
+</script>
